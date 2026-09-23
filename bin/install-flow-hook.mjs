@@ -45,6 +45,27 @@ export async function writeShim(targetPath, body, {force = false} = {}) {
   await fs.writeFile(targetPath, body, {encoding: 'utf8', mode: 0o755});
 }
 
+// Gera o corpo do shim. O caller computa `hookUrl` (file:// URL do hook)
+// e `archifyBinPath` (cmd completo para o binario archify em dev, ex:
+// `node /abs/path/to/repo/bin/archify.mjs`). Embarcamos o archifyBinPath
+// no shim para que o hook funcione em dev mode (sem install global).
+// Apóstrofos no path sao escapados defensivamente para o shim permanecer
+// um literal JS válido.
+export function buildShim({hookUrl, archifyBinPath}) {
+  // \\n e \\s viram \n e \s no output (escape de template literal).
+  return `#!/usr/bin/env node
+import {runHook} from '${hookUrl}';
+let buf = '';
+process.stdin.setEncoding('utf8');
+for await (const chunk of process.stdin) buf += chunk;
+const firstLine = (buf.split('\\n')[0] || '').trim();
+const tokens = firstLine.split(/\\s+/);
+const remoteRef = tokens[2] || '';
+const r = await runHook({remote: 'origin', remoteRef, archifyBin: '${archifyBinPath.replace(/'/g, "\\'")}'});
+process.exit(r.exitCode);
+`;
+}
+
 async function exists(p) {
   try { await fs.stat(p); return true; } catch { return false; }
 }
@@ -67,19 +88,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       const hookUrl = pathToFileURL(
         path.join(repoRoot, 'hooks/pre-push.flow.mjs'),
       ).href;
-      // Shim body: shebang + dynamic stdin parse + delega para runHook.
-      // \\n e \\s viram \n e \s no output (escape de template literal).
-      const shim = `#!/usr/bin/env node
-import {runHook} from '${hookUrl}';
-let buf = '';
-process.stdin.setEncoding('utf8');
-for await (const chunk of process.stdin) buf += chunk;
-const firstLine = (buf.split('\\n')[0] || '').trim();
-const tokens = firstLine.split(/\\s+/);
-const remoteRef = tokens[2] || '';
-const r = await runHook({remote: 'origin', remoteRef});
-process.exit(r.exitCode);
-`;
+      // Em dev mode (sem `npm i -g .`), o shim precisa do path absoluto
+      // para o bin/archify.mjs do repo. Bake-in no shim no install time.
+      const archifyBinPath = `node ${path.join(repoRoot, 'bin/archify.mjs')}`;
+      const shim = buildShim({hookUrl, archifyBinPath});
       await writeShim(target.path, shim, {force});
       console.log(`✓ installed archify flow hook at ${target.path} (${target.kind})`);
     } catch (e) {

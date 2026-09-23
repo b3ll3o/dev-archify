@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
-import {detectTarget, writeShim} from '../../bin/install-flow-hook.mjs';
+import {detectTarget, writeShim, buildShim} from '../../bin/install-flow-hook.mjs';
 
 test('detectTarget returns husky when .husky/_/ exists', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-install-'));
@@ -47,4 +47,21 @@ test('writeShim writes Husky-style shim', async () => {
   const got = await fs.readFile(target, 'utf8');
   assert.equal(got, 'echo archify');
   await fs.rm(tmp, {recursive: true, force: true});
+});
+
+test('buildShim embeds absolute archifyBin path for dev mode', () => {
+  // Garante que o shim gerado chama runHook com archifyBin absoluto,
+  // permitindo que o hook funcione em dev (sem `npm i -g .`).
+  const archifyBinPath = 'node /home/leo/dev/repo/bin/archify.mjs';
+  const body = buildShim({
+    hookUrl: 'file:///home/leo/dev/repo/hooks/pre-push.flow.mjs',
+    archifyBinPath,
+  });
+  assert.match(
+    body,
+    new RegExp(
+      `runHook\\(\\{remote: 'origin', remoteRef, archifyBin: '${archifyBinPath}'\\}\\)`,
+    ),
+    `shim deve embutir archifyBin absoluto; got:\n${body}`,
+  );
 });
