@@ -24,11 +24,13 @@ function parseCommits(range, {cwd} = {}) {
 }
 
 function loadMdDecisions(file) {
-  // Cada `## Heading` inicia um nó de decisão; o body vai até o próximo
-  // `## ` ou EOF. Erros de I/O são propagados.
+  // Cada `## Heading` (exatamente dois hashes seguidos de espaço) inicia
+  // um nó de decisão; o body vai até o próximo `## ` ou EOF. Erros de
+  // I/O são propagados. O lookahead negativo (?!#) impede match em
+  // `### Subheading` (que tinha o mesmo formato sob o regex antigo).
   const text = fsSync.readFileSync(file, 'utf8');
   const decisions = [];
-  const re = /^## (.+)$/gm;
+  const re = /^## (?!#)(.+)$/gm;
   const matches = [...text.matchAll(re)];
   for (let i = 0; i < matches.length; i += 1) {
     const title = matches[i][1];
