@@ -33,6 +33,7 @@ Exit codes:
 
 export async function runCLI(args) {
   const opts = parseArgs(args);
+  rejectUnknownOptions(opts);
   if (opts.help) {
     console.log(HELP_TEXT);
     return undefined;
@@ -123,6 +124,23 @@ function isInsideRepo(out, repoRoot) {
 
 // Minimal flag parser: aceita --key=value e --key value. Replica o estilo dos
 // outros subcommands (sem dependencias externas).
+//
+// Lista de chaves conhecidas (sem o prefixo `--`) — espelha o pattern usado
+// em archify.mjs:commandBrands, que rejeita flags desconhecidas via fail().
+const VALID_OPTION_KEYS = new Set([
+  'help', 'h', 'json', 'strict',
+  'git-range', 'out', 'since-message', 'decisions', 'validations', 'quality',
+]);
+
+function rejectUnknownOptions(opts) {
+  for (const key of Object.keys(opts)) {
+    if (key === '_') continue;
+    if (!VALID_OPTION_KEYS.has(key)) {
+      console.error(`Unknown flow option "--${key}".`);
+      process.exit(2);
+    }
+  }
+}
 function parseArgs(args) {
   const opts = {_: []};
   for (let i = 0; i < args.length; i += 1) {
