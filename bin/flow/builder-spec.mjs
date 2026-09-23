@@ -1,8 +1,36 @@
 import {idFor} from './ids.mjs';
 
+// Schema enum for node.type (see schemas/common.schema.json#/$defs/componentType).
+const COMPONENT_TYPES = new Set([
+  'frontend', 'backend', 'database', 'cloud', 'security', 'messagebus', 'external',
+]);
+
+// Per-lane locked visual mapping (see spec §4.3, decision locked at design time).
+const LANE_TYPE = Object.freeze({
+  modify: 'frontend',
+  decide: 'security',
+  validate: 'backend',
+});
+
+const LANE_DEFINITIONS = Object.freeze([
+  {id: 'modify',   label: 'Modify'},
+  {id: 'decide',   label: 'Decide'},
+  {id: 'validate', label: 'Validate'},
+]);
+
+const COL_MAX = 5;
+
+function colFor(positionInLane) {
+  return Math.min(Math.max(0, positionInLane | 0), COL_MAX);
+}
+
 function globToRegex(glob) {
-  // minimal glob: '*' → '.*'
-  const escaped = glob.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+  // minimal glob: '*' → '.*', everything else literal.
+  // Escape every regex metacharacter we treat as literal, INCLUDING '?' —
+  // a bare '?' makes `new RegExp('^?$')` throw SyntaxError "Nothing to repeat".
+  // `*` is intentionally left unescaped here so the next replace can promote
+  // it to `.*` (the original two-step pattern; we only widen the escape class).
+  const escaped = glob.replace(/[.+^${}()|[\]\\?]/g, '\\$&').replace(/\*/g, '.*');
   return new RegExp(`^${escaped}$`);
 }
 
@@ -11,132 +39,160 @@ function commitMatches(commit, sinceMessage) {
   return globToRegex(sinceMessage).test(commit.subject);
 }
 
-function buildModifyNode(file) {
-  const id = idFor({kind: 'modify', key: file.path, suffix: file.hunks.map(h => h.lines.join('-')).join(',')});
+function buildModifyNode(file, col) {
+  const id = idFor({
+    kind: 'modify',
+    key: file.path,
+    suffix: file.hunks.map(h => h.lines.join('-')).join(','),
+  });
+  const base = {id, lane: 'modify', col, type: LANE_TYPE.modify};
   if (file.binary) {
-    return {id, lane: 'Modify', type: 'default', label: `${file.path} (Binary changes)`};
+    return {...base, label: `${file.path} (Binary changes)`};
   }
   const adds = file.hunks.reduce((s, h) => s + h.add, 0);
   const dels = file.hunks.reduce((s, h) => s + h.del, 0);
   const ranges = file.hunks.map(h => `lines ${h.lines[0]}-${h.lines[1]}`).join(', ');
   return {
-    id,
-    lane: 'Modify',
-    type: 'default',
+    ...base,
     label: `${file.path} (+${adds} -${dels})`,
-    description: ranges ? `hunks at ${ranges}` : '',
+    sublabel: ranges ? `hunks at ${ranges}` : undefined,
   };
 }
 
-function buildDecideNodeFromCommit(c) {
+function buildDecideNodeFromCommit(c, col) {
   return {
     id: idFor({kind: 'decide', key: c.subject, suffix: c.sha}),
-    lane: 'Decide',
-    type: 'default',
+    lane: 'decide',
+    col,
+    type: LANE_TYPE.decide,
     label: `${c.sha.slice(0, 7)} ${c.subject}`,
-    description: c.body || '',
+    sublabel: c.body || undefined,
   };
 }
 
-function buildCollapsedDecideNode(commits) {
+function buildCollapsedDecideNode(commits, col) {
   const shas = commits.map(c => c.sha).join(' ');
+  const first = commits[0];
+  const last = commits[commits.length - 1];
   return {
     id: idFor({kind: 'decide', key: 'collapsed', suffix: shas}),
-    lane: 'Decide',
-    type: 'default',
+    lane: 'decide',
+    col,
+    type: LANE_TYPE.decide,
     label: `${commits.length} commits`,
-    description: `${commits[0].subject} … ${commits[commits.length - 1].subject} (${commits.map(c => c.sha.slice(0, 7)).join(' ')})`,
+    sublabel: `${first.subject} … ${last.subject} (${commits.map(c => c.sha.slice(0, 7)).join(' ')})`,
   };
 }
 
-function buildDecideNodeFromDecision(d) {
+function buildDecideNodeFromDecision(d, col) {
   return {
     id: idFor({kind: 'decide', key: d.title, suffix: 'explicit'}),
-    lane: 'Decide',
-    type: 'default',
+    lane: 'decide',
+    col,
+    type: LANE_TYPE.decide,
     label: d.title,
-    description: d.body,
+    sublabel: d.body || undefined,
   };
 }
 
-function buildValidateNode(v) {
-  return {
+function buildValidateNode(v, col) {
+  const node = {
     id: idFor({kind: 'validate', key: v.name, suffix: v.status}),
-    lane: 'Validate',
-    type: 'default',
+    lane: 'validate',
+    col,
+    type: LANE_TYPE.validate,
     label: `${v.name}: ${v.status}`,
-    description: v.summary || '',
   };
+  if (v.summary) node.sublabel = v.summary;
+  return node;
 }
 
-function chainEdges(nodes) {
-  const edges = [];
-  let prev = 'start';
-  for (const n of nodes) {
-    if (n.id === 'start' || n.id === 'end') continue;
-    edges.push({from: prev, to: n.id});
-    prev = n.id;
+// One axis through the lanes, in declared lane order, skipping any lane
+// that produced no nodes. Each lane's nodes are spaced across `col` 0..5.
+function buildAxis({modifyNodes, decideNodes, validateNodes}) {
+  const lanes = [
+    {nodes: modifyNodes,   id: 'modify'},
+    {nodes: decideNodes,   id: 'decide'},
+    {nodes: validateNodes, id: 'validate'},
+  ];
+  const ordered = [];
+  const usedLaneIds = [];
+  for (const lane of lanes) {
+    if (lane.nodes.length === 0) continue;
+    lane.nodes.forEach((n, i) => { n.col = colFor(i); });
+    ordered.push(...lane.nodes);
+    usedLaneIds.push(lane.id);
   }
-  edges.push({from: prev, to: 'end'});
-  return edges;
+  return {ordered, usedLaneIds};
 }
 
 export function buildSpec(inputs) {
   const {
     range, baseSha, files, commits, decisions = [],
-    validations = [], schemaVersion = 2, sinceMessage,
+    validations = [], sinceMessage,
   } = inputs;
+  // NOTE: provenance (range, baseSha, generated_at) is intentionally NOT
+  // emitted into the workflow JSON — schema is strict (additionalProperties:
+  // false). The runner writes it to <out>/_flow_source.json sidecar instead.
+  void baseSha;
 
   const filteredCommits = commits.filter(c => commitMatches(c, sinceMessage));
 
-  const modifyNodes = files
-    .filter(f => !f.binary || files.length === 1)
-    .map(buildModifyNode)
-    .concat(files.filter(f => f.binary && files.length !== 1).map(f => buildModifyNode(f)));
+  const modifyNodes = files.map(f => buildModifyNode(f, 0));
 
   let decideNodes;
   if (filteredCommits.length > 10) {
-    decideNodes = [buildCollapsedDecideNode(filteredCommits)];
+    decideNodes = [buildCollapsedDecideNode(filteredCommits, 0)];
   } else {
-    decideNodes = filteredCommits.map(buildDecideNodeFromCommit);
+    decideNodes = filteredCommits.map((c, i) => buildDecideNodeFromCommit(c, i));
   }
-  const explicitDecideNodes = decisions.map(buildDecideNodeFromDecision);
+  const explicitDecideNodes = decisions.map((d, i) =>
+    buildDecideNodeFromDecision(d, decideNodes.length + i),
+  );
   decideNodes = decideNodes.concat(explicitDecideNodes);
 
-  const validateNodes = validations.map(buildValidateNode);
+  const validateNodes = validations.map((v, i) => buildValidateNode(v, i));
 
-  const ordered = [
-    ...modifyNodes,
-    ...decideNodes,
-    ...validateNodes,
-  ];
+  const {ordered} = buildAxis({modifyNodes, decideNodes, validateNodes});
 
-  const nodes = [{id: 'start', type: 'start', label: 'start'}, ...ordered, {id: 'end', type: 'terminal', label: 'end'}];
+  if (ordered.length === 0) {
+    throw new Error('buildSpec: no nodes to emit (range produced no diff, no commits, and no validations)');
+  }
 
-  const edges = chainEdges(ordered);
-  const mainPath = ['start', ...ordered.map(n => n.id), 'end'];
-
-  const meta = {
-    title: `Flow for ${range}`,
-    animation: 'trace',
-  };
+  // Schema requires mainPath minItems: 2. If only one real node exists
+  // across all lanes, emit a self-loop so the path still has 2 entries.
+  let mainPath;
+  let edges;
+  if (ordered.length === 1) {
+    const only = ordered[0];
+    mainPath = [only.id, only.id];
+    edges = [{from: only.id, to: only.id}];
+  } else {
+    mainPath = ordered.map(n => n.id);
+    edges = [];
+    for (let i = 0; i < ordered.length - 1; i++) {
+      edges.push({from: ordered[i].id, to: ordered[i + 1].id});
+    }
+  }
 
   const spec = {
-    schema_version: schemaVersion,
+    schema_version: 1,
     diagram_type: 'workflow',
-    meta,
-    lanes: ['Modify', 'Decide', 'Validate'],
-    nodes,
+    meta: {
+      title: `Flow for ${range}`,
+      animation: 'trace',
+    },
+    lanes: LANE_DEFINITIONS,
+    nodes: ordered,
     edges,
     mainPath,
   };
 
-  if (schemaVersion >= 2) {
-    spec.semanticChecks = {
-      allowedRoots: ['start'],
-      allowedTerminals: ['end'],
-    };
-    spec._flow_source = {range, baseSha, generated_at: 'will-be-stamped-by-runner'};
+  // Defensive self-check: every node.type must be in the schema enum.
+  for (const node of spec.nodes) {
+    if (!COMPONENT_TYPES.has(node.type)) {
+      throw new Error(`buildSpec: node ${node.id} has invalid type "${node.type}"`);
+    }
   }
 
   return spec;
