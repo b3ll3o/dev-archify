@@ -51,12 +51,18 @@ export async function runCLI(args) {
   // (independentemente de --out apontar para fora do repo). A saida de
   // `git diff` e' capturada aqui e propagada para runFlow (via diffText)
   // para que o runner nao precise executar `git diff` uma segunda vez.
+  // Timeout de 10s evita que um range gigante trave o CLI; maxBuffer de
+  // 50MB casa com parser-diff.mjs (diffs grandes sao comuns em monorepos).
   let diffText;
   try {
     diffText = execFileSync('git', [
       'diff', '--unified=0', '--no-color', '--no-ext-diff',
       opts['git-range'],
-    ], {encoding: 'utf8'});
+    ], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      maxBuffer: 50 * 1024 * 1024,
+    });
   } catch (e) {
     console.error(`archify flow: git diff failed for ${opts['git-range']}: ${e.message}`);
     process.exit(2);
