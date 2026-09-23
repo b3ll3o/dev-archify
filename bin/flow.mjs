@@ -34,6 +34,10 @@ Exit codes:
 export async function runCLI(args) {
   const opts = parseArgs(args);
   rejectUnknownOptions(opts);
+  if (opts._.length > 0) {
+    console.error(`archify flow: unexpected positional arguments: ${opts._.join(' ')}`);
+    process.exit(2);
+  }
   if (opts.help) {
     console.log(HELP_TEXT);
     return undefined;
