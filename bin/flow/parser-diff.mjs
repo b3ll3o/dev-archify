@@ -76,9 +76,14 @@ export function parseDiffText(text) {
   return files;
 }
 
-export function parseDiffRange(range, {cwd} = {}) {
-  const text = execFileSync('git', [
-    'diff', '--unified=0', '--no-color', '--no-ext-diff', range,
-  ], {encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, ...(cwd ? {cwd} : {})});
+export function parseDiffRange(range, {cwd, diffText} = {}) {
+  // Se o caller (CLI pre-flight) ja capturou a saida de `git diff`, aceitamos
+  // o texto direto para evitar invocar `git` duas vezes. Caso contrario, rodamos
+  // `git diff` aqui com maxBuffer elevado (diffs grandes sao comuns em monorepos).
+  const text = diffText !== undefined
+    ? diffText
+    : execFileSync('git', [
+      'diff', '--unified=0', '--no-color', '--no-ext-diff', range,
+    ], {encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, ...(cwd ? {cwd} : {})});
   return parseDiffText(text);
 }

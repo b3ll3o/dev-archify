@@ -64,7 +64,7 @@ export async function runFlow(opts) {
   const {
     range, out, quality = 'standard',
     decisions: decisionsFile, validations: validationsFile,
-    archifyBin, sinceMessage, cwd,
+    archifyBin, sinceMessage, cwd, diffText,
   } = opts;
 
   if (!range) throw new Error('runFlow: `range` is required');
@@ -72,7 +72,7 @@ export async function runFlow(opts) {
   if (!archifyBin) throw new Error('runFlow: `archifyBin` is required');
 
   const stamp = new Date().toISOString();
-  const files = parseDiffRange(range, {cwd});
+  const files = parseDiffRange(range, {cwd, diffText});
   // Suporta tanto `base...HEAD` quanto `base .. HEAD` (espaços opcionais).
   const [baseSha] = range.split(/\.\.\.| \.\. /);
   const commits = parseCommits(range, {cwd});

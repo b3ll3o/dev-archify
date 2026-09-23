@@ -48,10 +48,12 @@ export async function runCLI(args) {
 
   // Pre-flight: range deve ter ao menos um arquivo modificado. Esta checagem
   // vem antes da validação de --out para que ranges vazios sempre retornem 2
-  // (independentemente de --out apontar para fora do repo).
-  let diffProbe;
+  // (independentemente de --out apontar para fora do repo). A saida de
+  // `git diff` e' capturada aqui e propagada para runFlow (via diffText)
+  // para que o runner nao precise executar `git diff` uma segunda vez.
+  let diffText;
   try {
-    diffProbe = execFileSync('git', [
+    diffText = execFileSync('git', [
       'diff', '--unified=0', '--no-color', '--no-ext-diff',
       opts['git-range'],
     ], {encoding: 'utf8'});
@@ -59,7 +61,7 @@ export async function runCLI(args) {
     console.error(`archify flow: git diff failed for ${opts['git-range']}: ${e.message}`);
     process.exit(2);
   }
-  if (!diffProbe.trim()) {
+  if (!diffText.trim()) {
     console.error(`archify flow: no changes detected in ${opts['git-range']}`);
     process.exit(2);
   }
@@ -81,6 +83,7 @@ export async function runCLI(args) {
       sinceMessage: opts['since-message'],
       archifyBin,
       cwd: repoRoot,
+      diffText,
     });
   } catch (e) {
     console.error(`archify flow: pipeline failed: ${e.message}`);
