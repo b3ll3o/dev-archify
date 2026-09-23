@@ -29,6 +29,7 @@ function usage() {
   archify examples
   archify doctor
   archify demo [output-directory]
+  archify flow --git-range <range> [--out <dir>] [--since-message <glob>] [--decisions <md>] [--validations <json>] [--quality standard|showcase] [--strict] [--json]
 
 Types:
   architecture, workflow, sequence, dataflow, lifecycle
@@ -2126,6 +2127,11 @@ try {
     case 'demo':
       commandDemo(args);
       break;
+    case 'flow': {
+      const {runCLI: runFlowCLI} = await import('./flow.mjs');
+      await runFlowCLI(args);
+      break;
+    }
     default:
       fail(`Unknown command "${command}".\n\n${usage()}`);
   }
