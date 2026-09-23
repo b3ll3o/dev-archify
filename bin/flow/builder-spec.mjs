@@ -39,13 +39,13 @@ function commitMatches(commit, sinceMessage) {
   return globToRegex(sinceMessage).test(commit.subject);
 }
 
-function buildModifyNode(file, col) {
+function buildModifyNode(file) {
   const id = idFor({
     kind: 'modify',
     key: file.path,
     suffix: file.hunks.map(h => h.lines.join('-')).join(','),
   });
-  const base = {id, lane: 'modify', col, type: LANE_TYPE.modify};
+  const base = {id, lane: 'modify', type: LANE_TYPE.modify};
   if (file.binary) {
     return {...base, label: `${file.path} (Binary changes)`};
   }
@@ -59,47 +59,43 @@ function buildModifyNode(file, col) {
   };
 }
 
-function buildDecideNodeFromCommit(c, col) {
+function buildDecideNodeFromCommit(c) {
   return {
     id: idFor({kind: 'decide', key: c.subject, suffix: c.sha}),
     lane: 'decide',
-    col,
     type: LANE_TYPE.decide,
     label: `${c.sha.slice(0, 7)} ${c.subject}`,
     sublabel: c.body || undefined,
   };
 }
 
-function buildCollapsedDecideNode(commits, col) {
+function buildCollapsedDecideNode(commits) {
   const shas = commits.map(c => c.sha).join(' ');
   const first = commits[0];
   const last = commits[commits.length - 1];
   return {
     id: idFor({kind: 'decide', key: 'collapsed', suffix: shas}),
     lane: 'decide',
-    col,
     type: LANE_TYPE.decide,
     label: `${commits.length} commits`,
     sublabel: `${first.subject} … ${last.subject} (${commits.map(c => c.sha.slice(0, 7)).join(' ')})`,
   };
 }
 
-function buildDecideNodeFromDecision(d, col) {
+function buildDecideNodeFromDecision(d) {
   return {
     id: idFor({kind: 'decide', key: d.title, suffix: 'explicit'}),
     lane: 'decide',
-    col,
     type: LANE_TYPE.decide,
     label: d.title,
     sublabel: d.body || undefined,
   };
 }
 
-function buildValidateNode(v, col) {
+function buildValidateNode(v) {
   const node = {
     id: idFor({kind: 'validate', key: v.name, suffix: v.status}),
     lane: 'validate',
-    col,
     type: LANE_TYPE.validate,
     label: `${v.name}: ${v.status}`,
   };
@@ -108,52 +104,48 @@ function buildValidateNode(v, col) {
 }
 
 // One axis through the lanes, in declared lane order, skipping any lane
-// that produced no nodes. Each lane's nodes are spaced across `col` 0..5.
+// that produced no nodes. `buildAxis` is the single owner of `col` assignment
+// (schema requires col in [0, 5]); node builders are col-agnostic.
 function buildAxis({modifyNodes, decideNodes, validateNodes}) {
   const lanes = [
-    {nodes: modifyNodes,   id: 'modify'},
-    {nodes: decideNodes,   id: 'decide'},
-    {nodes: validateNodes, id: 'validate'},
+    {nodes: modifyNodes},
+    {nodes: decideNodes},
+    {nodes: validateNodes},
   ];
   const ordered = [];
-  const usedLaneIds = [];
   for (const lane of lanes) {
     if (lane.nodes.length === 0) continue;
     lane.nodes.forEach((n, i) => { n.col = colFor(i); });
     ordered.push(...lane.nodes);
-    usedLaneIds.push(lane.id);
   }
-  return {ordered, usedLaneIds};
+  return ordered;
 }
 
 export function buildSpec(inputs) {
   const {
-    range, baseSha, files, commits, decisions = [],
+    range, files, commits, decisions = [],
     validations = [], sinceMessage,
   } = inputs;
   // NOTE: provenance (range, baseSha, generated_at) is intentionally NOT
   // emitted into the workflow JSON — schema is strict (additionalProperties:
   // false). The runner writes it to <out>/_flow_source.json sidecar instead.
-  void baseSha;
 
   const filteredCommits = commits.filter(c => commitMatches(c, sinceMessage));
 
-  const modifyNodes = files.map(f => buildModifyNode(f, 0));
+  const modifyNodes = files.map(buildModifyNode);
 
   let decideNodes;
   if (filteredCommits.length > 10) {
-    decideNodes = [buildCollapsedDecideNode(filteredCommits, 0)];
+    decideNodes = [buildCollapsedDecideNode(filteredCommits)];
   } else {
-    decideNodes = filteredCommits.map((c, i) => buildDecideNodeFromCommit(c, i));
+    decideNodes = filteredCommits.map(buildDecideNodeFromCommit);
   }
-  const explicitDecideNodes = decisions.map((d, i) =>
-    buildDecideNodeFromDecision(d, decideNodes.length + i),
-  );
+  const explicitDecideNodes = decisions.map(buildDecideNodeFromDecision);
   decideNodes = decideNodes.concat(explicitDecideNodes);
 
-  const validateNodes = validations.map((v, i) => buildValidateNode(v, i));
+  const validateNodes = validations.map(buildValidateNode);
 
-  const {ordered} = buildAxis({modifyNodes, decideNodes, validateNodes});
+  const ordered = buildAxis({modifyNodes, decideNodes, validateNodes});
 
   if (ordered.length === 0) {
     throw new Error('buildSpec: no nodes to emit (range produced no diff, no commits, and no validations)');

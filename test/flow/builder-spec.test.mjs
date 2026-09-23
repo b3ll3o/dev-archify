@@ -4,7 +4,6 @@ import {buildSpec} from '../../bin/flow/builder-spec.mjs';
 
 const baseInputs = () => ({
   range: 'origin/main...HEAD',
-  baseSha: 'base1234',
   files: [{
     path: 'src/x.ts', binary: false, renameFrom: null,
     hunks: [{start: 12, add: 5, del: 3, lines: [12, 16]}],
