@@ -76,9 +76,9 @@ export function parseDiffText(text) {
   return files;
 }
 
-export function parseDiffRange(range) {
+export function parseDiffRange(range, {cwd} = {}) {
   const text = execFileSync('git', [
     'diff', '--unified=0', '--no-color', '--no-ext-diff', range,
-  ], {encoding: 'utf8', maxBuffer: 50 * 1024 * 1024});
+  ], {encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, ...(cwd ? {cwd} : {})});
   return parseDiffText(text);
 }

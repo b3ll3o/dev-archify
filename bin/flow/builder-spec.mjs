@@ -39,6 +39,19 @@ function commitMatches(commit, sinceMessage) {
   return globToRegex(sinceMessage).test(commit.subject);
 }
 
+// Trunca o label para caber no node (~92px). O conteúdo completo vai para
+// sublabel (renderizado abaixo do label). Schema aceita string sem maxLength,
+// mas o layout é restrito — labels muito longos fazem o renderer falhar com
+// `layout/constraint`. Mantemos label ≤ 14 chars e sublabel ≤ 20 chars para
+// caber no node width default do workflow fixed-v1 layout.
+const MAX_LABEL_CHARS = 14;
+const MAX_SUBLABEL_CHARS = 20;
+
+function truncateLabel(text, max = MAX_LABEL_CHARS) {
+  if (!text || text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
+
 function buildModifyNode(file) {
   const id = idFor({
     kind: 'modify',
@@ -47,38 +60,39 @@ function buildModifyNode(file) {
   });
   const base = {id, lane: 'modify', type: LANE_TYPE.modify};
   if (file.binary) {
-    return {...base, label: `${file.path} (Binary changes)`};
+    return {...base, label: truncateLabel(`${file.path} (Binary)`)};
   }
   const adds = file.hunks.reduce((s, h) => s + h.add, 0);
   const dels = file.hunks.reduce((s, h) => s + h.del, 0);
-  const ranges = file.hunks.map(h => `lines ${h.lines[0]}-${h.lines[1]}`).join(', ');
+  const ranges = file.hunks.map(h => `L${h.lines[0]}-${h.lines[1]}`).join(', ');
   return {
     ...base,
-    label: `${file.path} (+${adds} -${dels})`,
-    sublabel: ranges ? `hunks at ${ranges}` : undefined,
+    label: truncateLabel(file.path),
+    sublabel: truncateLabel(`(+${adds} -${dels})${ranges ? ` ${ranges}` : ''}`, MAX_SUBLABEL_CHARS),
   };
 }
 
 function buildDecideNodeFromCommit(c) {
+  // label = sha prefix (≤ 7 chars) — cabe no node 92px.
+  // sublabel = subject completo (com truncamento agressivo).
   return {
     id: idFor({kind: 'decide', key: c.subject, suffix: c.sha}),
     lane: 'decide',
     type: LANE_TYPE.decide,
-    label: `${c.sha.slice(0, 7)} ${c.subject}`,
-    sublabel: c.body || undefined,
+    label: c.sha.slice(0, 7),
+    sublabel: truncateLabel(c.subject, MAX_SUBLABEL_CHARS) || undefined,
   };
 }
 
 function buildCollapsedDecideNode(commits) {
   const shas = commits.map(c => c.sha).join(' ');
-  const first = commits[0];
-  const last = commits[commits.length - 1];
+  const shortShas = commits.map(c => c.sha.slice(0, 7)).join(' ');
   return {
     id: idFor({kind: 'decide', key: 'collapsed', suffix: shas}),
     lane: 'decide',
     type: LANE_TYPE.decide,
-    label: `${commits.length} commits`,
-    sublabel: `${first.subject} … ${last.subject} (${commits.map(c => c.sha.slice(0, 7)).join(' ')})`,
+    label: truncateLabel(`${commits.length} commits`),
+    sublabel: truncateLabel(shortShas, MAX_SUBLABEL_CHARS),
   };
 }
 
@@ -87,8 +101,8 @@ function buildDecideNodeFromDecision(d) {
     id: idFor({kind: 'decide', key: d.title, suffix: 'explicit'}),
     lane: 'decide',
     type: LANE_TYPE.decide,
-    label: d.title,
-    sublabel: d.body || undefined,
+    label: truncateLabel(d.title),
+    sublabel: d.body ? truncateLabel(d.body, MAX_SUBLABEL_CHARS) : undefined,
   };
 }
 
@@ -97,15 +111,21 @@ function buildValidateNode(v) {
     id: idFor({kind: 'validate', key: v.name, suffix: v.status}),
     lane: 'validate',
     type: LANE_TYPE.validate,
-    label: `${v.name}: ${v.status}`,
+    label: truncateLabel(`${v.name}: ${v.status}`),
   };
-  if (v.summary) node.sublabel = v.summary;
+  if (v.summary) node.sublabel = truncateLabel(v.summary, MAX_SUBLABEL_CHARS);
   return node;
 }
 
 // One axis through the lanes, in declared lane order, skipping any lane
 // that produced no nodes. `buildAxis` is the single owner of `col` assignment
 // (schema requires col in [0, 5]); node builders are col-agnostic.
+//
+// Cols are assigned sequentially across the entire ordered node list (not
+// per-lane). The renderer enforces `to.col >= from.col` on every mainPath
+// step — restart-per-lane would produce backward mainPath steps whenever a
+// lane has more than one node. The schema permits any col in [0, 5]; we cap
+// at COL_MAX so the position never overflows.
 function buildAxis({modifyNodes, decideNodes, validateNodes}) {
   const lanes = [
     {nodes: modifyNodes},
@@ -115,9 +135,9 @@ function buildAxis({modifyNodes, decideNodes, validateNodes}) {
   const ordered = [];
   for (const lane of lanes) {
     if (lane.nodes.length === 0) continue;
-    lane.nodes.forEach((n, i) => { n.col = colFor(i); });
     ordered.push(...lane.nodes);
   }
+  ordered.forEach((n, i) => { n.col = colFor(i); });
   return ordered;
 }
 
