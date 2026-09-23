@@ -46,11 +46,16 @@ async function loadValidations(file) {
   return Array.isArray(data) ? data : [data];
 }
 
-function shellArchify(archifyBin, subArgs) {
+function shellArchify(archifyBin, subArgs, cwd) {
   // archifyBin é o caminho absoluto para bin/archify.mjs (sem `node`).
   // Executamos `node <archifyBin> <subArgs...>` para reaproveitar a
   // dispatch oficial — não duplicamos render/validate logic aqui.
-  return execFileSync('node', [archifyBin, ...subArgs], {encoding: 'utf8'});
+  // Passamos cwd para casar com o cwd usado em parseDiffRange/parseCommits,
+  // garantindo semantica consistente em todos os subprocessos.
+  return execFileSync('node', [archifyBin, ...subArgs], {
+    encoding: 'utf8',
+    ...(cwd ? {cwd} : {}),
+  });
 }
 
 export async function runFlow(opts) {
@@ -93,7 +98,7 @@ export async function runFlow(opts) {
     const validateRaw = shellArchify(archifyBin, [
       'validate', 'workflow', jsonPath,
       `--quality=${quality}`, '--json',
-    ]);
+    ], cwd);
     const parsed = JSON.parse(validateRaw);
     validateReceipt = {
       status: parsed.ok === true ? 'passed' : 'failed',
@@ -113,7 +118,7 @@ export async function runFlow(opts) {
   shellArchify(archifyBin, [
     'deliver', 'workflow', jsonPath, htmlPath,
     `--quality=${quality}`, '--json',
-  ]);
+  ], cwd);
 
   return {
     jsonPath,
