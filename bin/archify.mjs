@@ -31,6 +31,7 @@ function usage() {
   archify demo [output-directory]
   archify flow --git-range <range> [--out <dir>] [--since-message <glob>] [--decisions <md>] [--validations <json>] [--quality standard|showcase] [--strict] [--json]
   archify agent-flow --source <md> --out <json> [--quality standard|showcase] [--no-validate] [--json]
+  archify enrich --source <json> [--out <json>] [--catalog <md>] [--quality standard|showcase] [--no-validate] [--json]
   archify init-flow-hook [--target <path>] [--force]
 
 Types:
@@ -2132,6 +2133,65 @@ try {
     case 'flow': {
       const {runCLI: runFlowCLI} = await import('./flow.mjs');
       await runFlowCLI(args);
+      break;
+    }
+    case 'enrich': {
+      // B32: orchestrator em bin/agent-flow/enrich-cli.mjs. Quando invocado
+      // via archify.mjs, o IIFE gate de enrich-cli.mjs fica inerte, entao
+      // chamamos runEnrichCommand diretamente.
+      const {parseEnrichArgs, runEnrichCommand} = await import('./agent-flow/enrich-cli.mjs');
+      let parsed;
+      try {
+        parsed = parseEnrichArgs(args);
+      } catch (err) {
+        console.error(`archify enrich: ${err.message}`);
+        process.exit(err.exitCode || 2);
+      }
+      if (parsed._.length > 0) {
+        console.error(`archify enrich: unexpected positional arguments: ${parsed._.join(' ')}`);
+        process.exit(2);
+      }
+      if (parsed.help) {
+        console.log(`Usage: archify enrich --source <json> [--out <json>] [--catalog <md>] [--quality standard|showcase]`);
+        process.exit(0);
+      }
+      if (!parsed.source) {
+        console.error('archify enrich: --source is required');
+        process.exit(2);
+      }
+      try {
+        const receipt = await runEnrichCommand({
+          sourcePath: path.resolve(parsed.source),
+          outPath: parsed.out ? path.resolve(parsed.out) : null,
+          catalogPath: parsed.catalog ? path.resolve(parsed.catalog) : null,
+          quality: parsed.quality || 'standard',
+          validate: parsed.validate !== false,
+          archifyBin: fileURLToPath(import.meta.url),
+          cwd: process.cwd(),
+        });
+        if (!parsed.out) {
+          // Sem --out: escreve JSON enriquecido em stdout. Caller faz pipe.
+          process.stdout.write(`${receipt.stdoutJson}\n`);
+        } else if (parsed.json) {
+          console.log(JSON.stringify(receipt, null, 2));
+        } else {
+          const target = receipt.outPath || 'stdout';
+          console.log(`enriched ${receipt.diagramType} ${receipt.sourcePath} → ${target}`);
+          console.log(`  flowId: ${receipt.flowId || '(unknown)'}`);
+          console.log(`  enrichment: tier=${receipt.enrichment.tier || '-'} mechanism=${receipt.enrichment.mechanism || '-'} actorTags=${receipt.enrichment.actorTagsApplied}`);
+          if (receipt.enrichment.catalogWarning) {
+            console.log(`  catalogWarning: ${receipt.enrichment.catalogWarning}`);
+          }
+          if (receipt.validate) {
+            const badge = receipt.validate.ok ? 'passed' : `failed: ${receipt.validate.summary || ''}`;
+            console.log(`  validate: ${badge}`);
+          }
+        }
+        process.exit(receipt.exitCode || 0);
+      } catch (err) {
+        console.error(`archify enrich: ${err.message}`);
+        process.exit(err.exitCode || 1);
+      }
       break;
     }
     case 'agent-flow': {
