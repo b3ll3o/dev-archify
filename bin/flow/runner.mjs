@@ -75,7 +75,7 @@ function shellArchify(archifyBin, subArgs, cwd) {
 // garantidamente no mesmo diretório. Em caso de falha, removemos o staging
 // para não deixar órfão (e usamos `.catch(() => {})` porque um ENOENT no
 // rm é benigno — significa que nem chegamos a criar o .tmp).
-async function writeAtomic(targetPath, contents, {encoding = 'utf8'} = {}) {
+export async function writeAtomic(targetPath, contents, {encoding = 'utf8'} = {}) {
   const dir = path.dirname(targetPath);
   const tmp = path.join(dir, `.archify-flow-${process.pid}-${Date.now()}.tmp`);
   try {
