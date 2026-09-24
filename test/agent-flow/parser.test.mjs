@@ -294,8 +294,8 @@ test('E2E: 8 agent-workflows MDs (arrow + box-art) geram IR estruturalmente vali
   const mdFiles = (await fs.readdir(workflowsDir)).filter((f) => f.endsWith('.md')).sort();
   assert.equal(mdFiles.length, 9, `esperava 9 MDs no total, encontrei ${mdFiles.length}`);
   // 8 dos 9 MDs seguem o pattern `A → B → C` ou ASCII box-art (`│ NAME │`).
-  // archive-demand.md usa formato diferente (lista numerada) e exige parser
-  // dedicado — fora do escopo do MVP. Este E2E cobre os 8 auto-generable.
+  // archive-demand.md usa formato diferente (lista numerada) — coberto pelo
+  // parser dedicado em enrichment.mjs (commit 2). Este E2E cobre os 8 arrow/box-art.
   const generable = [];
   for (const f of mdFiles) {
     const md = await fs.readFile(path.join(workflowsDir, f), 'utf8');
@@ -321,9 +321,11 @@ test('E2E: 8 agent-workflows MDs (arrow + box-art) geram IR estruturalmente vali
   }
 });
 
-test('archive-demand.md (lista numerada, sem fence com seta/box-art) documentado como limitacao do MVP', async () => {
+test('archive-demand.md (lista numerada, sem fence com seta/box-art) usa parser dedicado em B30+', async () => {
   const md = await fs.readFile(path.join(workflowsDir, 'archive-demand.md'), 'utf8');
-  // Confirmar que o MD NAO tem fence com seta nem box-art (limitacao conhecida do MVP).
+  // Confirmar que extractPipelineFromMd NAO consegue parsear archive-demand.md
+  // (faltam fence com seta ou box-art). Parser dedicado parseArchiveDemand
+  // (B30 commit 2) cobre este caso via lista numerada em "## Passo a passo".
   assert.deepEqual(extractPipelineFromMd(md), [],
-    'archive-demand.md nao tem fence com pipeline ASCII ou box-art; parser atual retorna []');
+    'archive-demand.md nao tem fence com pipeline ASCII; parser dedicado trata via lista numerada');
 });

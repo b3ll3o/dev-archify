@@ -23,6 +23,7 @@ import {
   enrichIrFromCatalog,
   mergeEnrichment,
   tagActor,
+  parseArchiveDemand,
 } from './agent-flow/parser.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -139,16 +140,45 @@ export async function runAgentFlow({sourcePath, outPath, quality = 'standard', v
   const flowId = fm.name || path.basename(sourcePath).replace(/\.md$/, '');
   const title = extractTitle(md, flowId);
 
-  // Parse pipeline (arrow/box-art). archive-demand.md (lista numerada) nao
-  // tem setas — fica fora deste MVP; sera tratado em B30+ com parser dedicado.
-  const actors = extractPipelineFromMd(md);
-  if (actors.length < 2) {
+  // Parse pipeline (arrow/box-art). Se nao achar, cai no parser dedicado
+  // para archive-demand.md (lista numerada em "## Passo a passo") — bonus B30.
+  let actors = extractPipelineFromMd(md);
+  let ir;
+  const usedArchiveDemandParser = actors.length < 2;
+
+  if (actors.length >= 2) {
+    ir = generateIr({actors, title, flowId});
+  } else if (usedArchiveDemandParser) {
+    const parsed = parseArchiveDemand(md, {flowId, title});
+    if (!parsed) {
+      const err = new Error(`no pipeline found in ${sourcePath} (need >=2 actors with '→' or ASCII box-art, or '## Passo a passo' numbered list)`);
+      err.exitCode = 2;
+      throw err;
+    }
+    ir = {
+      schema_version: 2,
+      diagram_type: 'workflow',
+      meta: {
+        title: parsed.title,
+        animation: 'trace',
+        visual_preset: 'signal-flow',
+        quality_profile: 'standard',
+      },
+      lanes: [{id: 'archive', label: 'Archive Pipeline'}],
+      phases: [],
+      groups: [],
+      cards: [],
+      nodes: parsed.nodes,
+      edges: parsed.edges,
+      mainPath: parsed.mainPath,
+    };
+    // archive-demand nao tem actors formais; vazio mas IR ja esta completo.
+    actors = [];
+  } else {
     const err = new Error(`no pipeline found in ${sourcePath} (need >=2 actors with '→' or ASCII box-art)`);
     err.exitCode = 2;
     throw err;
   }
-
-  let ir = generateIr({actors, title, flowId});
 
   // Override quality profile solicitado via CLI (default no generateIr: standard)
   ir.meta.quality_profile = quality;
@@ -161,22 +191,26 @@ export async function runAgentFlow({sourcePath, outPath, quality = 'standard', v
     const catalogPath = path.join(baseRepoRoot, 'docs/flows/README.md');
     const catalogEnrichment = await enrichIrFromCatalog({catalogPath, flowId: `flow-${flowId}`});
     if (catalogEnrichment) {
-      const actorTags = Object.fromEntries(
-        actors.map((a) => {
-          const id = a.toLowerCase().replaceAll('-', '_');
-          const tag = tagActor(a);
-          return [id, tag];
-        }),
-      );
+      const actorTags = actors.length > 0
+        ? Object.fromEntries(
+          actors.map((a) => {
+            const id = a.toLowerCase().replaceAll('-', '_');
+            const tag = tagActor(a);
+            return [id, tag];
+          }),
+        )
+        : {};
       ir = mergeEnrichment(ir, {
         ...catalogEnrichment,
         actorTags,
-        views: [{
-          id: 'sequence-overview',
-          label: 'Sequence Overview',
-          focus: ir.nodes.map((n) => n.id),
-          note: `Sequência nominal: ${actors.join(' → ')}`,
-        }],
+        views: actors.length > 0
+          ? [{
+            id: 'sequence-overview',
+            label: 'Sequence Overview',
+            focus: ir.nodes.map((n) => n.id),
+            note: `Sequência nominal: ${actors.join(' → ')}`,
+          }]
+          : undefined,
       });
       enrichmentApplied = true;
     }

@@ -197,3 +197,112 @@ export function mergeEnrichment(primary, enrichment) {
 
   return out;
 }
+
+// Slugify para ids: "Validar elegibilidade" → "validate_eligibilidade"
+// Mantem apenas ASCII alfanumerico + underscores (pattern id do schema).
+function slugifyStep(label, idx) {
+  const normalized = String(label || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // remove diacriticos
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return normalized || `step_${idx + 1}`;
+}
+
+// Parseia archive-demand.md: detecta H2 "Passo a passo" e mapeia lista
+// numerada (1. 2. ...) para nodes sequenciais (B30 bonus parser).
+//
+// Formato esperado:
+//   ## Passo a passo
+//
+//   1. **Validar elegibilidade** (convenção §1):
+//      - sub-bullet
+//   2. **Coletar metadados**:
+//      ...
+//
+// Cada item vira um node (id=slug do titulo, label=titulo, sublabel=sub-bullets joined).
+// Edges conectam consecutive nodes.
+export function parseArchiveDemand(md, {flowId = 'archive-demand', title} = {}) {
+  if (!md || typeof md !== 'string') return null;
+  const lines = md.split('\n');
+
+  // 1. Encontrar H2 "Passo a passo"
+  let sectionStart = -1;
+  for (let i = 0; i < lines.length; i += 1) {
+    if (/^##\s+Passo a passo\s*$/i.test(lines[i])) {
+      sectionStart = i + 1;
+      break;
+    }
+  }
+  if (sectionStart === -1) return null;
+
+  // 2. Coleta items numerados (1. 2. ...) ate o proximo H2 ou EOF
+  const items = [];
+  let current = null;
+  for (let i = sectionStart; i < lines.length; i += 1) {
+    const line = lines[i];
+    // Para no proximo H2 (mesmo nivel)
+    if (/^##\s+/.test(line)) break;
+    // Item numerado (1. 2. ...) no inicio da linha
+    const m = line.match(/^\s*(\d+)\.\s+(.*)$/);
+    if (m) {
+      if (current) items.push(current);
+      current = {title: m[2].trim(), subItems: []};
+      continue;
+    }
+    // Sub-bullet pertencente ao item atual
+    if (current && /^\s*-\s+/.test(line)) {
+      const sub = line.replace(/^\s*-\s+/, '').trim();
+      current.subItems.push(sub);
+    }
+    // Linha vazia ou qualquer outra coisa: ignorar (sub-bullets ja foram colados)
+  }
+  if (current) items.push(current);
+  if (items.length < 2) return null;
+
+  // 3. Mapear items para nodes
+  const nodes = items.map((item, i) => {
+    const cleanTitle = item.title
+      .replace(/\s*\([^)]*\)\s*:?\s*$/, '') // remove "(convenção §1):" no final
+      .replace(/[*_]+/g, '') // remove bold/italic markdown
+      .replace(/:\s*$/, '') // remove trailing colon
+      .trim();
+    // Sublabel muito curto (apenas primeiro sub-bullet truncado) para caber
+    // em node width padrao (160). Mantem info util sem violar layout constraint.
+    const sublabel = item.subItems.length > 0
+      ? item.subItems[0]
+          .replace(/[`*_]+/g, '')
+          .replace(/<[^>]+>/g, '')
+          .slice(0, 36)
+          .trim()
+      : undefined;
+    return {
+      id: slugifyStep(cleanTitle, i),
+      label: cleanTitle.length > 40 ? cleanTitle.slice(0, 37) + '...' : cleanTitle,
+      lane: 'archive',
+      col: i,
+      type: 'external',
+      sublabel,
+      width: 160,
+    };
+  });
+
+  // 4. Edges conectando consecutive
+  const edges = [];
+  for (let i = 0; i < nodes.length - 1; i += 1) {
+    edges.push({
+      id: `${nodes[i].id}-to-${nodes[i + 1].id}`,
+      from: nodes[i].id,
+      to: nodes[i + 1].id,
+      role: 'main',
+    });
+  }
+
+  return {
+    title: title || 'Archive Demand Pipeline',
+    nodes,
+    edges,
+    mainPath: nodes.map((n) => n.id),
+  };
+}

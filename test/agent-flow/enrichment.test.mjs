@@ -1,11 +1,13 @@
-// Testes do enrichment IR (B30 — commit 1: tier/mechanism/subject).
+// Testes do enrichment IR (B30 — commit 1: tier/mechanism/subject; commit 2: archive-demand).
 //
 // Cobertura:
 //   1. parseCatalogRow        (extrai tier/mechanism/subject de linha do catalog docs/flows/README.md)
 //   2. enrichIrFromCatalog    (lookup por flow_id → {tier, mechanism, subject})
 //   3. tagActor               (deriva role/scope do nome do actor)
 //   4. mergeEnrichment        (combina IR primario com enrichment, primary vence)
-//   5. E2E: backend-feature.md + catalog → IR enriquecido
+//   5. parseArchiveDemand     (parser dedicado para lista numerada em archive-demand.md)
+//   6. E2E: backend-feature.md + catalog → IR enriquecido
+//   7. E2E: archive-demand.md → IR sequencial
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -20,6 +22,7 @@ import {
   enrichIrFromCatalog,
   tagActor,
   mergeEnrichment,
+  parseArchiveDemand,
   extractPipelineFromMd,
   extractFrontmatter,
   extractTitle,
@@ -245,4 +248,103 @@ test('E2E: backend-feature.md + catalog → IR com tier/mechanism/subject/views/
   }
   const receipt = JSON.parse(stdout);
   assert.equal(receipt.ok, true, `validate falhou: ${JSON.stringify(receipt, null, 2)}`);
+});
+
+// 6. parseArchiveDemand (bonus B30)
+
+test('parseArchiveDemand extrai 6 passos sequenciais do archive-demand.md', async () => {
+  const md = await fs.readFile(path.join(workflowsDir, 'archive-demand.md'), 'utf8');
+  const result = parseArchiveDemand(md, {flowId: 'archive-demand'});
+  assert.equal(result.nodes.length, 6, `esperava 6 nodes, recebi ${result.nodes.length}`);
+  // Cada node tem id/lane/col/type=external/label (step title)
+  for (let i = 0; i < result.nodes.length; i += 1) {
+    const n = result.nodes[i];
+    assert.equal(n.lane, 'archive');
+    assert.equal(n.col, i);
+    assert.equal(n.type, 'external');
+    assert.ok(n.id, `node ${i} deve ter id`);
+    assert.ok(n.label, `node ${i} deve ter label`);
+  }
+  // Edges conectam consecutive nodes
+  assert.equal(result.edges.length, 5);
+  // mainPath contem todos os ids em ordem
+  assert.equal(result.mainPath.length, 6);
+  // 1o step e "Validar elegibilidade" (strip bold)
+  assert.match(result.nodes[0].label, /Validar elegibilidade/);
+});
+
+test('parseArchiveDemand gera IR que passa no schema workflow v2', async () => {
+  const md = await fs.readFile(path.join(workflowsDir, 'archive-demand.md'), 'utf8');
+  const result = parseArchiveDemand(md, {flowId: 'archive-demand', title: 'Archive Demand'});
+  // Wrap em IR completo
+  const ir = {
+    schema_version: 2,
+    diagram_type: 'workflow',
+    meta: {
+      title: result.title,
+      animation: 'trace',
+      visual_preset: 'signal-flow',
+      quality_profile: 'standard',
+    },
+    lanes: [{id: 'archive', label: 'Archive Pipeline'}],
+    phases: [],
+    groups: [],
+    cards: [],
+    nodes: result.nodes,
+    edges: result.edges,
+    mainPath: result.mainPath,
+  };
+  assert.ok(validateWf(ir), `IR nao passa schema: ${JSON.stringify(validateWf.errors)}`);
+});
+
+test('parseArchiveDemand retorna null para MD sem secao "Passo a passo"', () => {
+  const md = '# Sem lista numerada\n\nso texto\n';
+  assert.equal(parseArchiveDemand(md, {flowId: 'x'}), null);
+});
+
+// 7. E2E: archive-demand.md via parser dedicado → IR sequencial
+
+test('E2E: archive-demand.md → IR sequencial (6 nodes, 5 edges) + enrichment catalog', async () => {
+  const md = await fs.readFile(path.join(workflowsDir, 'archive-demand.md'), 'utf8');
+  const parsed = parseArchiveDemand(md, {flowId: 'archive-demand', title: 'Archive Demand'});
+  assert.ok(parsed);
+  const ir = {
+    schema_version: 2,
+    diagram_type: 'workflow',
+    meta: {
+      title: parsed.title,
+      animation: 'trace',
+      visual_preset: 'signal-flow',
+      quality_profile: 'standard',
+    },
+    lanes: [{id: 'archive', label: 'Archive Pipeline'}],
+    phases: [],
+    groups: [],
+    cards: [],
+    nodes: parsed.nodes,
+    edges: parsed.edges,
+    mainPath: parsed.mainPath,
+  };
+  // Tambem enrichment catalog (archive-demand tem tier=nice no catalog)
+  const enrichment = await enrichIrFromCatalog({catalogPath, flowId: 'flow-archive-demand'});
+  if (enrichment) {
+    // Sem actorTags (archive-demand nao tem actors formais)
+    const merged = mergeEnrichment(ir, enrichment);
+    assert.equal(merged.meta.tier, 'nice');
+    assert.equal(merged.meta.mechanism, 'auto');
+    assert.match(merged.meta.subject, /Demanda/);
+    // Validar via CLI
+    const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-enrich-archive-'));
+    const jsonPath = path.join(tmp, 'flow.workflow.json');
+    await fs.writeFile(jsonPath, JSON.stringify(merged, null, 2));
+    try {
+      const stdout = (await import('node:child_process')).execFileSync('node', [
+        archifyBin, 'validate', 'workflow', jsonPath, '--quality=standard', '--json',
+      ], {encoding: 'utf8', cwd: baseRepo, timeout: 30_000});
+      const receipt = JSON.parse(stdout);
+      assert.equal(receipt.ok, true, `validate falhou: ${JSON.stringify(receipt, null, 2)}`);
+    } finally {
+      await fs.rm(tmp, {recursive: true, force: true});
+    }
+  }
 });

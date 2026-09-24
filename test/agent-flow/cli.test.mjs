@@ -155,3 +155,48 @@ test('runAgentFlow: enrichment aplicado automaticamente (tier/mechanism/subject 
     await fs.rm(tmpDir, {recursive: true, force: true});
   }
 });
+
+test('runAgentFlow: archive-demand.md → parser dedicado gera IR sequencial + enrichment', async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-agent-flow-archive-'));
+  const outPath = path.join(tmpDir, 'flow.workflow.json');
+  try {
+    const receipt = await runAgentFlow({
+      sourcePath: path.join(workflowsDir, 'archive-demand.md'),
+      outPath,
+      quality: 'standard',
+      archifyBin,
+    });
+    assert.equal(receipt.exitCode, 0, `exitCode esperado 0, recebi ${receipt.exitCode} (${JSON.stringify(receipt)})`);
+    assert.equal(receipt.nodesCount, 6, `esperava 6 nodes, recebi ${receipt.nodesCount}`);
+    assert.equal(receipt.edgesCount, 5);
+    assert.ok(receipt.validate.ok, `validate esperado ok, recebi ${JSON.stringify(receipt.validate)}`);
+    const written = JSON.parse(await fs.readFile(outPath, 'utf8'));
+    assert.equal(written.lanes[0].id, 'archive');
+    assert.equal(written.mainPath.length, 6);
+    // Tambem enrichment catalog (archive-demand tem tier=nice)
+    assert.equal(written.meta.tier, 'nice');
+    assert.equal(written.meta.mechanism, 'auto');
+  } finally {
+    await fs.rm(tmpDir, {recursive: true, force: true});
+  }
+});
+
+test('runAgentFlow: 9 MDs (incluindo archive-demand via parser dedicado) geram IR que valida', async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-agent-flow-batch2-'));
+  const mdFiles = (await fs.readdir(workflowsDir)).filter((f) => f.endsWith('.md')).sort();
+  try {
+    for (const f of mdFiles) {
+      const outPath = path.join(tmpDir, `${f.replace(/\.md$/, '')}.workflow.json`);
+      const receipt = await runAgentFlow({
+        sourcePath: path.join(workflowsDir, f),
+        outPath,
+        quality: 'standard',
+        archifyBin,
+      });
+      assert.equal(receipt.exitCode, 0, `${f}: exitCode esperado 0, recebi ${receipt.exitCode}`);
+      assert.ok(receipt.validate.ok, `${f}: validate ok esperado, recebi ${JSON.stringify(receipt.validate)}`);
+    }
+  } finally {
+    await fs.rm(tmpDir, {recursive: true, force: true});
+  }
+});

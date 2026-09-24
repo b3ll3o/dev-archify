@@ -271,4 +271,5 @@ export {
   enrichIrFromCatalog,
   tagActor,
   mergeEnrichment,
+  parseArchiveDemand,
 } from './enrichment.mjs';
