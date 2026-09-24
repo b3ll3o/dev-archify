@@ -102,6 +102,21 @@ export function parseAgentFlowArgs(args) {
 
 // Orquestrador do agent-flow: load MD → generate IR → write → validate.
 export async function runAgentFlow({sourcePath, outPath, quality = 'standard', validate = true, archifyBin: cliBin = archifyBin, cwd} = {}) {
+  if (!sourcePath) {
+    const err = new Error('runAgentFlow: `sourcePath` is required');
+    err.exitCode = 2;
+    throw err;
+  }
+  if (!outPath) {
+    const err = new Error('runAgentFlow: `outPath` is required');
+    err.exitCode = 2;
+    throw err;
+  }
+  if (quality && !['standard', 'showcase'].includes(quality)) {
+    const err = new Error(`runAgentFlow: \`quality\` must be 'standard' or 'showcase' (got '${quality}')`);
+    err.exitCode = 2;
+    throw err;
+  }
   // 1. Load MD
   let md;
   try {
