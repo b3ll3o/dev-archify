@@ -117,3 +117,28 @@ test('runFlow aceita sinceMessage e filtra commits', async () => {
 
   await fs.rm(tmpRoot, {recursive: true, force: true});
 });
+
+test('runFlow extrai baseSha correto para range 2-dot (main..feat)', async () => {
+  await ensureFixture();
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-flow-runner-2dot-'));
+  const outDir = path.join(tmpRoot, 'docs/flows');
+
+  const fixtureDir = path.join(repoRoot, 'test/flow/fixtures/mini-repo');
+  // git diff aceita tanto A..B quanto A...B; ambos devem produzir baseSha='main'.
+  const receipt = await runFlow({
+    range: 'main..feat',
+    out: outDir,
+    quality: 'standard',
+    archifyBin,
+    cwd: fixtureDir,
+  });
+
+  const source = JSON.parse(await fs.readFile(receipt.sourcePath, 'utf8'));
+  assert.equal(
+    source.baseSha,
+    'main',
+    `baseSha deve ser 'main' para range 2-dot, recebi: "${source.baseSha}"`,
+  );
+
+  await fs.rm(tmpRoot, {recursive: true, force: true});
+});

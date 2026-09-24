@@ -14,7 +14,7 @@ import {buildSpec} from './builder-spec.mjs';
 
 function parseCommits(range, {cwd} = {}) {
   const text = execFileSync('git', [
-    'log', range, '--pretty=%h%n%s%n%b%n--END--',
+    'log', range, '--pretty=%h%n%s%n%b%n--ARCHIFY-FLOW-SEP--',
   ], {
     encoding: 'utf8',
     timeout: 10_000,
@@ -22,7 +22,9 @@ function parseCommits(range, {cwd} = {}) {
     ...(cwd ? {cwd} : {}),
   });
   if (!text.trim()) return [];
-  return text.split('--END--\n').filter(Boolean).map((block) => {
+  // Marker raro com prefixo `--ARCHIFY-FLOW-SEP--` evita colisao com `--END--`
+  // que aparece naturalmente em fins de linha de changelogs (P1#1).
+  return text.split('--ARCHIFY-FLOW-SEP--\n').filter(Boolean).map((block) => {
     const [sha, subject, ...rest] = block.split('\n');
     return {sha, subject, body: rest.join('\n').trim()};
   });
@@ -79,8 +81,10 @@ export async function runFlow(opts) {
 
   const stamp = new Date().toISOString();
   const files = parseDiffRange(range, {cwd, diffText});
-  // Suporta tanto `base...HEAD` quanto `base .. HEAD` (espaços opcionais).
-  const [baseSha] = range.split(/\.\.\.| \.\. /);
+  // Suporta tanto `base..HEAD` (sem espacos) quanto `base...HEAD` (3-dot).
+  // Regex `\s*\.\.\s*` cobre ambos com trim opcional; antes só `...` e ` .. `
+  // estavam cobertos, fazendo 2-dot retornar a string inteira.
+  const [baseSha] = range.split(/\s*\.\.\s*/);
   const commits = parseCommits(range, {cwd});
   const decisions = decisionsFile ? loadMdDecisions(decisionsFile) : [];
   const validations = validationsFile ? await loadValidations(validationsFile) : [];
