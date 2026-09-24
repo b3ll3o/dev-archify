@@ -30,6 +30,7 @@ function usage() {
   archify doctor
   archify demo [output-directory]
   archify flow --git-range <range> [--out <dir>] [--since-message <glob>] [--decisions <md>] [--validations <json>] [--quality standard|showcase] [--strict] [--json]
+  archify agent-flow --source <md> --out <json> [--quality standard|showcase] [--no-validate] [--json]
   archify init-flow-hook [--target <path>] [--force]
 
 Types:
@@ -2131,6 +2132,66 @@ try {
     case 'flow': {
       const {runCLI: runFlowCLI} = await import('./flow.mjs');
       await runFlowCLI(args);
+      break;
+    }
+    case 'agent-flow': {
+      // Delega para bin/agent-flow.mjs exportando parseAgentFlowArgs + runAgentFlow.
+      // O IIFE gate de bin/agent-flow.mjs fica inerte quando dispatchado via
+      // archify.mjs, entao chamamos o orquestrador diretamente.
+      const {HELP_TEXT, parseAgentFlowArgs, runAgentFlow} = await import('./agent-flow.mjs');
+      let parsed;
+      try {
+        parsed = parseAgentFlowArgs(args);
+      } catch (err) {
+        console.error(`archify agent-flow: ${err.message}`);
+        process.exit(err.exitCode || 2);
+      }
+      if (parsed._.length > 0) {
+        console.error(`archify agent-flow: unexpected positional arguments: ${parsed._.join(' ')}`);
+        process.exit(2);
+      }
+      if (parsed.help) {
+        console.log(HELP_TEXT);
+        process.exit(0);
+      }
+      if (!parsed.source) {
+        console.error('archify agent-flow: --source is required');
+        process.exit(2);
+      }
+      if (!parsed.out) {
+        console.error('archify agent-flow: --out is required');
+        process.exit(2);
+      }
+      const quality = parsed.quality || 'standard';
+      if (!['standard', 'showcase'].includes(quality)) {
+        console.error(`archify agent-flow: --quality must be 'standard' or 'showcase' (got '${quality}')`);
+        process.exit(2);
+      }
+      try {
+        const receipt = await runAgentFlow({
+          sourcePath: path.resolve(parsed.source),
+          outPath: path.resolve(parsed.out),
+          quality,
+          validate: parsed.validate !== false,
+          archifyBin: fileURLToPath(import.meta.url),
+          cwd: process.cwd(),
+        });
+        if (parsed.json) {
+          console.log(JSON.stringify(receipt, null, 2));
+        } else {
+          console.log(`wrote ${receipt.outPath}`);
+          console.log(`  actors: ${receipt.actors.length}`);
+          console.log(`  nodes:  ${receipt.nodesCount}`);
+          console.log(`  edges:  ${receipt.edgesCount}`);
+          if (receipt.validate) {
+            const badge = receipt.validate.ok ? 'passed' : `failed: ${receipt.validate.summary || ''}`;
+            console.log(`  validate: ${badge}`);
+          }
+        }
+      } catch (err) {
+        console.error(`archify agent-flow: ${err.message}`);
+        process.exit(err.exitCode || 1);
+      }
       break;
     }
     case 'init-flow-hook': {
