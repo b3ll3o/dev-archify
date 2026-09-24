@@ -1,21 +1,47 @@
-// Enrichment do IR workflow.json v2 (B30).
+// Enrichment do IR workflow.json v2 (B30 + B33).
 //
 // Fontes secundarias para enriquecer o IR minimalista gerado por `generateIr`:
 //   - `docs/flows/README.md` (catalog): tier/mechanism/subject por flow_id
 //   - `WORKFLOWS.md` (matriz): sequence nominal (ja disponivel via actors)
 //
-// APIs (commit 1):
+// APIs:
 //   - parseCatalogRow(row)              → {flowId, tier, tierEmoji, mechanism, subject} | null
 //   - enrichIrFromCatalog({catalogPath, flowId}) → {tier, mechanism, subject} | null
 //   - tagActor(name)                    → {role, scope, sublabel, tag}
 //   - mergeEnrichment(primary, enrichment) → primary IR com enrichment aplicado
+//   - parseArchiveDemand(md, opts)      → IR sequencial (B30 bonus)
 //
 // Convensoes:
 //   - primary vence em conflito (meta.title, etc.)
 //   - actorTags sao aplicados em nodes por id (snake_case)
 //   - views[] e adicionado ao final, nunca substitui
 //   - mergeEnrichment aceita enrichment=null → retorna primary intacto
+//   - tagActor: SPECIFIC_PATTERNS (B33) tem prioridade sobre ROLE/SCOPE genericos
 import fs from 'node:fs/promises';
+
+// Padrões especificos: actor conhecido → role+scope atomicos (B33).
+// Matched ANTES dos ROLE/SCOPE patterns genericos; ordem = prioridade.
+const SPECIFIC_PATTERNS = [
+  {re: /^STATE-AWARE-PLANNING$/i, role: 'planner', scope: 'state'},
+  {re: /^CI-DEFENSE-IN-DEPTH$/i, role: 'auditor', scope: 'ci'},
+  {re: /^SECURITY-MODE$/i, role: 'auditor', scope: 'security'},
+  {re: /^REFACTOR-MODE$/i, role: 'refactorer', scope: 'code'},
+  {re: /^ARCHIVE-DEMAND$/i, role: 'archiver', scope: 'docs'},
+  {re: /^TASK-MODE$/i, role: 'manager', scope: 'task'},
+  {re: /^DOCS-MODE$/i, role: 'writer', scope: 'docs'},
+  {re: /^REVIEW-MODE$/i, role: 'reviewer', scope: 'quality'},
+  {re: /^EXPLORE-MODE$/i, role: 'explorer', scope: 'read'},
+  {re: /^RELEASE-MODE$/i, role: 'manager', scope: 'release'},
+  {re: /^RETROSPECTIVE-MODE$/i, role: 'capture', scope: 'learning'},
+  {re: /^TEST-WRITER$/i, role: 'writer', scope: 'test'},
+  {re: /^CODE-REVIEWER$/i, role: 'reviewer', scope: 'code'},
+  {re: /^TDD-ENFORCER$/i, role: 'enforcer', scope: 'tdd'},
+  {re: /^NESTJS-SPECIALIST$/i, role: 'specialist', scope: 'backend'},
+  {re: /^NEXTJS-SPECIALIST$/i, role: 'specialist', scope: 'frontend'},
+  {re: /^MONOREPO-SPECIALIST$/i, role: 'specialist', scope: 'monorepo'},
+  {re: /^FRONTEND-SPECIALIST$/i, role: 'specialist', scope: 'frontend'},
+  {re: /^AGENT-ARCHITECT$/i, role: 'planner', scope: 'architecture'},
+];
 
 // Sufixos que mapeiam para role.
 // Ordem importa: suffixes mais longos primeiro (specialist antes de -ist etc).
@@ -38,7 +64,7 @@ const ROLE_PATTERNS = [
 // Prefixos que mapeiam para scope.
 const SCOPE_PATTERNS = [
   {re: /nestjs/i, scope: 'backend'},
-  {re: /nextjs|next\.js/i, scope: 'frontend'},
+  {re: /nextjs|next\.js|frontend/i, scope: 'frontend'},
   {re: /monorepo/i, scope: 'monorepo'},
   {re: /state-aware|state_aware/i, scope: 'state'},
   {re: /archive/i, scope: 'archive'},
@@ -60,9 +86,26 @@ const TIER_EMOJI_MAP = {
 
 // Deriva {role, scope, sublabel, tag} do nome do actor (UPPER-CASE-HYPHEN).
 // Idempotente: lowercase kebab/snake_case funciona.
+//
+// Resolucao:
+//   1. SPECIFIC_PATTERNS: match exato (case-insensitive) define role+scope atomicamente.
+//   2. ROLE_PATTERNS: deriva role do sufixo do nome.
+//   3. SCOPE_PATTERNS: deriva scope de tokens do nome.
 export function tagActor(name) {
   const upper = String(name || '').trim();
   if (!upper) return {role: 'agent', scope: 'generic', sublabel: undefined, tag: undefined};
+
+  // 1. Match especifico (B33): 19 actors com role+scope pre-definidos.
+  for (const {re, role: r, scope: s} of SPECIFIC_PATTERNS) {
+    if (re.test(upper)) {
+      return {
+        role: r,
+        scope: s,
+        sublabel: r,
+        tag: `scope:${s}`,
+      };
+    }
+  }
 
   let role = null;
   for (const {re, role: r} of ROLE_PATTERNS) {

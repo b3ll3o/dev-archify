@@ -102,16 +102,16 @@ test('tagActor deriva role=specialist e scope=frontend de NEXTJS-SPECIALIST', ()
   assert.equal(tag.scope, 'frontend');
 });
 
-test('tagActor deriva role=reviewer e scope=quality de CODE-REVIEWER', () => {
+test('tagActor deriva role=reviewer e scope=code de CODE-REVIEWER (B33 expansion)', () => {
   const tag = tagActor('CODE-REVIEWER');
   assert.equal(tag.role, 'reviewer');
-  assert.equal(tag.scope, 'quality');
+  assert.equal(tag.scope, 'code');
 });
 
-test('tagActor deriva role=enforcer e scope=quality de TDD-ENFORCER', () => {
+test('tagActor deriva role=enforcer e scope=tdd de TDD-ENFORCER (B33 expansion)', () => {
   const tag = tagActor('TDD-ENFORCER');
   assert.equal(tag.role, 'enforcer');
-  assert.equal(tag.scope, 'quality');
+  assert.equal(tag.scope, 'tdd');
 });
 
 test('tagActor deriva role=writer e scope=docs de DOC-WRITER', () => {
