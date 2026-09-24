@@ -30,6 +30,7 @@ function usage() {
   archify doctor
   archify demo [output-directory]
   archify flow --git-range <range> [--out <dir>] [--since-message <glob>] [--decisions <md>] [--validations <json>] [--quality standard|showcase] [--strict] [--json]
+  archify init-flow-hook [--target <path>] [--force]
 
 Types:
   architecture, workflow, sequence, dataflow, lifecycle
@@ -2134,7 +2135,7 @@ try {
     }
     case 'init-flow-hook': {
       // Delega para bin/install-flow-hook.mjs preservando exit code.
-      const installerPath = path.resolve(import.meta.dirname, 'install-flow-hook.mjs');
+      const installerPath = path.join(__dirname, 'install-flow-hook.mjs');
       const result = runNode([installerPath, ...args]);
       if (result.error) throw result.error;
       if (typeof result.status === 'number' && result.status !== 0) {
