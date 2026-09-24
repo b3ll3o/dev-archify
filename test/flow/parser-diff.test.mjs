@@ -94,6 +94,12 @@ test('handles delete-only file', () => {
   assert.equal(result[0].path, 'old.ts');
   assert.equal(result[0].hunks[0].add, 0);
   assert.equal(result[0].hunks[0].del, 3);
+  // P0#1: lines nao podem ser negativas para @@ -1,3 +0,0 @@.
+  // Antes do fix, lines era [0, -1]; com o clamp fica [0, 0].
+  assert.ok(
+    result[0].hunks[0].lines[1] >= result[0].hunks[0].lines[0],
+    `lines devem satisfazer lines[1] >= lines[0]; recebi ${JSON.stringify(result[0].hunks[0].lines)}`,
+  );
 });
 
 test('returns empty array for empty input', () => {

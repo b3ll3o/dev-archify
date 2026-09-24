@@ -36,7 +36,6 @@ export function parseDiffText(text) {
       hunkActive = false;
       continue;
     }
-    if (current && line === RENAME_FROM.exec('')?. [0]) continue;
     const renameFrom = RENAME_FROM.exec(line);
     if (current && renameFrom) { current.renameFrom = renameFrom[1]; continue; }
     const renameTo = RENAME_TO.exec(line);
@@ -54,7 +53,7 @@ export function parseDiffText(text) {
         start: startNew,
         add: lenNew,
         del: parseInt(hunkMatch[2] || '1', 10),
-        lines: [startNew, startNew + lenNew - 1],
+        lines: [startNew, Math.max(startNew, startNew + lenNew - 1)],
       });
       hunkActive = true;
       continue;
