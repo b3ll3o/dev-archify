@@ -68,6 +68,25 @@ function shellArchify(archifyBin, subArgs, cwd) {
   });
 }
 
+// Write atômico via staging + rename (P1#6). Sem staging, um crash mid-write
+// deixa o destino parcial (e.g. workflow.json com JSON inválido), enquanto
+// o caller assume que o arquivo é válido. `rename` é POSIX-atomic quando
+// origem e destino estão no mesmo filesystem, e `targetPath` e `.tmp` estão
+// garantidamente no mesmo diretório. Em caso de falha, removemos o staging
+// para não deixar órfão (e usamos `.catch(() => {})` porque um ENOENT no
+// rm é benigno — significa que nem chegamos a criar o .tmp).
+async function writeAtomic(targetPath, contents, {encoding = 'utf8'} = {}) {
+  const dir = path.dirname(targetPath);
+  const tmp = path.join(dir, `.archify-flow-${process.pid}-${Date.now()}.tmp`);
+  try {
+    await fs.writeFile(tmp, contents, encoding);
+    await fs.rename(tmp, targetPath);
+  } catch (e) {
+    await fs.rm(tmp, {force: true}).catch(() => {});
+    throw e;
+  }
+}
+
 export async function runFlow(opts) {
   const {
     range, out, quality = 'standard',
@@ -97,13 +116,13 @@ export async function runFlow(opts) {
 
   await fs.mkdir(out, {recursive: true});
   const jsonPath = path.join(out, 'workflow.json');
-  await fs.writeFile(jsonPath, JSON.stringify(spec, null, 2), 'utf8');
+  await writeAtomic(jsonPath, JSON.stringify(spec, null, 2));
 
   // Sidecar de provenance: nunca validado por archify validate.
   const sourcePath = path.join(out, '_flow_source.json');
-  await fs.writeFile(sourcePath, JSON.stringify({
+  await writeAtomic(sourcePath, JSON.stringify({
     range, baseSha, generated_at: stamp,
-  }, null, 2), 'utf8');
+  }, null, 2));
 
   // Validação: warning-only (failure é stashed no receipt para o resto do pipeline
   // continuar). HTML é o deliverable real — falha de deliver é throw.

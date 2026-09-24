@@ -118,6 +118,27 @@ test('runFlow aceita sinceMessage e filtra commits', async () => {
   await fs.rm(tmpRoot, {recursive: true, force: true});
 });
 
+test('runFlow nao deixa .tmp files apos sucesso', async () => {
+  await ensureFixture();
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-flow-runner-atomic-'));
+  const outDir = path.join(tmpRoot, 'docs/flows');
+
+  const fixtureDir = path.join(repoRoot, 'test/flow/fixtures/mini-repo');
+  await runFlow({
+    range: 'main...feat',
+    out: outDir,
+    quality: 'standard',
+    archifyBin,
+    cwd: fixtureDir,
+  });
+
+  const entries = await fs.readdir(outDir);
+  const tmps = entries.filter((e) => e.startsWith('.archify-flow-') && e.endsWith('.tmp'));
+  assert.equal(tmps.length, 0, `sem .tmp apos sucesso, achei: ${tmps.join(', ')}`);
+
+  await fs.rm(tmpRoot, {recursive: true, force: true});
+});
+
 test('runFlow extrai baseSha correto para range 2-dot (main..feat)', async () => {
   await ensureFixture();
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-flow-runner-2dot-'));
