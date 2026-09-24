@@ -144,7 +144,10 @@ function isInsideRepo(out, repoRoot) {
         /* continua subindo */
       }
     }
-    if (!realOut) realOut = out; // fallback textual
+    // NICE-2 (NICE do reviewer): fail-closed em vez de fallback textual.
+    // Se nenhum ancestor resolveu, o caminho e' provavelmente invalido;
+    // // // recusar em vez de cair no comportamento pre-fix.
+    if (!realOut) return false;
   }
   try {
     realRepo = fs.realpathSync(repoRoot);

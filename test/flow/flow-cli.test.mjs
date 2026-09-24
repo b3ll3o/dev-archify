@@ -217,3 +217,41 @@ test('aceita --out em symlink que aponta para dir DENTRO do repo (compatibilidad
 
   await fs.rm(tmpRoot, {recursive: true, force: true});
 });
+
+test('aceita --out cujo dir alvo NAO existe, mas parent existe (ancestor walk)', async () => {
+  // NICE-1 do reviewer: --out=docs/novo (subdir que ainda nao existe) deve
+  // ser aceito: o guard caminha ancestrais ate' docs/ (que existe) e usa
+  // seu realpath. Cobre o caminho de producao mais comum.
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-flow-walk-'));
+  execFileSync('git', ['init', '-q', tmpRoot]);
+  execFileSync('git', ['-C', tmpRoot, 'config', 'user.email', 'a@b.c']);
+  execFileSync('git', ['-C', tmpRoot, 'config', 'user.name', 't']);
+  await fs.writeFile(path.join(tmpRoot, 'f.txt'), 'x');
+  execFileSync('git', ['-C', tmpRoot, 'add', 'f.txt']);
+  execFileSync('git', ['-C', tmpRoot, 'commit', '-q', '-m', 'init']);
+  // Segundo commit para que HEAD~1..HEAD tenha diff nao-vazio (senao o
+  // pre-flight do CLI rejeita antes de chegar no guard).
+  await fs.writeFile(path.join(tmpRoot, 'f2.txt'), 'y');
+  execFileSync('git', ['-C', tmpRoot, 'add', 'f2.txt']);
+  execFileSync('git', ['-C', tmpRoot, 'commit', '-q', '-m', 'more']);
+  // Cria parent docs/ para o caso de uso real (docs/flows/...).
+  await fs.mkdir(path.join(tmpRoot, 'docs'), {recursive: true});
+
+  const binPath = path.join(repoRoot, 'bin', 'archify.mjs');
+  const res = spawnSync('node', [
+    binPath, 'flow',
+    '--git-range=HEAD~1..HEAD',
+    '--out=docs/brand-new',  // NAO existe; parent existe
+    '--quality=standard',
+  ], {cwd: tmpRoot, encoding: 'utf8'});
+
+  assert.equal(res.status, 0,
+    `CLI nao deve rejeitar --out com subdir novo; recebi status=${res.status}, stderr=${res.stderr}`);
+  assert.equal(
+    await fs.stat(path.join(tmpRoot, 'docs/brand-new/workflow.json')).then(() => true, () => false),
+    true,
+    'workflow.json deve ter sido escrito no dir recem-criado',
+  );
+
+  await fs.rm(tmpRoot, {recursive: true, force: true});
+});

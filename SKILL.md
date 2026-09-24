@@ -86,6 +86,12 @@ Invocação manual (sem o hook):
 node bin/archify.mjs flow --git-range=origin/main...HEAD --out=docs/flows/
 ```
 
+Defesa: `--out` e' resolvido via `realpathSync` antes da validacao de
+containment, entao symlinks apontando para fora do repo (.git/hooks,
+                /tmp, /etc) sao rejeitados com exit code 6. O dir nao precisa
+existir (caso comum `--out=docs/novo`); o CLI caminha ancestrais ate' o
+primeiro existente.
+
 Ver `node bin/archify.mjs flow --help` para a lista completa de argumentos e exit codes.
 
 ## Mermaid input
