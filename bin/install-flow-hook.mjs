@@ -70,6 +70,29 @@ async function exists(p) {
   try { await fs.stat(p); return true; } catch { return false; }
 }
 
+// Valida que --target resolve dentro de `repoRoot` (sem escapar).
+// Auto-detect (sem --target) e' seguro por construcao: escolhe entre
+// `.git/hooks/pre-push` ou `.husky/pre-push` via `detectTarget`. O override
+// manual, por outro lado, passa por `path.resolve` verbatim — sem essa
+// validacao, `--target /etc/cron.d/evil` ou `--target ../../../tmp/x.sh`
+// escreveriam um shim 0o755 executable fora do repo (P1#4 — defesa contra
+// path-traversal em agent/CI que passa --target derivado de fonte externa).
+// Aceita qualquer path dentro do repo (incluindo `.git/hooks/`, `.husky/`
+// ou paths custom como `<tmp>/pre-push` em testes de dispatcher).
+export function ensureTargetInsideRepo(targetPath, repoRoot) {
+  const resolved = path.resolve(targetPath);
+  const repoRootResolved = path.resolve(repoRoot);
+  const inside =
+    resolved === repoRootResolved ||
+    resolved.startsWith(repoRootResolved + path.sep);
+  if (!inside) {
+    throw new Error(
+      `--target must resolve inside the repo; got ${resolved}`,
+    );
+  }
+  return resolved;
+}
+
 // CLI entry: detecta layout, gera shim, escreve no path apropriado.
 if (import.meta.url === `file://${process.argv[1]}`) {
   (async () => {
@@ -81,7 +104,15 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     try {
       const detected = await detectTarget(repoRoot);
       const target = targetOverride
-        ? {kind: 'override', path: path.resolve(repoRoot, targetOverride), root: repoRoot}
+        ? (() => {
+            // Defesa contra path-traversal: garante que --target esta
+            // dentro do repo (P1#4) antes de montar o shim.
+            const resolvedOverride = ensureTargetInsideRepo(
+              path.resolve(repoRoot, targetOverride),
+              repoRoot,
+            );
+            return {kind: 'override', path: resolvedOverride, root: repoRoot};
+          })()
         : detected;
       // Import path precisa ser file:// URL (Node ESM nao aceita absolute path
       // estatico de forma confiavel em todas as versoes).

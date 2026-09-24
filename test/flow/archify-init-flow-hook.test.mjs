@@ -15,12 +15,15 @@ const archifyBin = path.join(repoRoot, 'bin', 'archify.mjs');
 
 test('archify init-flow-hook --target <path> --force escreve o shim', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-dispatcher-'));
+  // .git/ e' necessario para detectTarget passar (P1#4 exige que o installer
+  // valide o override so' depois de detectar layout).
+  await fs.mkdir(path.join(tmp, '.git'), {recursive: true});
   const target = path.join(tmp, 'pre-push');
   try {
     execFileSync(
       process.execPath,
       [archifyBin, 'init-flow-hook', '--target', target, '--force'],
-      {encoding: 'utf8', stdio: 'pipe'},
+      {encoding: 'utf8', stdio: 'pipe', cwd: tmp},
     );
     // O shim deve existir e conter runHook com archifyBin absoluto.
     const stat = await fs.stat(target);
@@ -35,6 +38,7 @@ test('archify init-flow-hook --target <path> --force escreve o shim', async () =
 
 test('archify init-flow-hook preserva exit code do installer (hook existente sem --force)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-dispatcher-'));
+  await fs.mkdir(path.join(tmp, '.git'), {recursive: true});
   const target = path.join(tmp, 'pre-push');
   try {
     // Pre-popula o hook para forçar o installer a falhar com exit 1.
@@ -45,7 +49,7 @@ test('archify init-flow-hook preserva exit code do installer (hook existente sem
       execFileSync(
         process.execPath,
         [archifyBin, 'init-flow-hook', '--target', target],
-        {encoding: 'utf8', stdio: 'pipe'},
+        {encoding: 'utf8', stdio: 'pipe', cwd: tmp},
       );
     } catch (e) {
       exitCode = e.status;
@@ -62,13 +66,14 @@ test('archify init-flow-hook delega args desconhecidos ao installer', async () =
   // Args extras são responsabilidade do installer; o dispatcher
   // deve apenas propagar e sair com o código do installer.
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-dispatcher-'));
+  await fs.mkdir(path.join(tmp, '.git'), {recursive: true});
   try {
     let exitCode = null;
     try {
       execFileSync(
         process.execPath,
         [archifyBin, 'init-flow-hook', '--target', path.join(tmp, 'no-parent', 'pre-push')],
-        {encoding: 'utf8', stdio: 'pipe'},
+        {encoding: 'utf8', stdio: 'pipe', cwd: tmp},
       );
     } catch (e) {
       exitCode = e.status;
