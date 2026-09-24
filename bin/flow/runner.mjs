@@ -148,14 +148,34 @@ export async function runFlow(opts) {
   }
 
   const htmlPath = path.join(out, 'workflow.html');
-  shellArchify(archifyBin, [
-    'deliver', 'workflow', jsonPath, htmlPath,
-    `--quality=${quality}`, '--json',
-  ], cwd);
+  // P1#7: gate o `deliver` em cima de validate.ok. Se validate falhou,
+  // NAO chamamos archify deliver (que escreveria um HTML invalido
+  // indistinguivel do valido). Sem --strict, ainda retornamos o receipt
+  // com validateReceipt.status !== 'passed' para o CLI exibir o badge,
+  // mas htmlPath=null indica que nenhum HTML foi escrito.
+  let deliverReceipt;
+  if (validateReceipt.ok === true) {
+    const deliverRaw = shellArchify(archifyBin, [
+      'deliver', 'workflow', jsonPath, htmlPath,
+      `--quality=${quality}`, '--json',
+    ], cwd);
+    deliverReceipt = {
+      status: 'passed',
+      ok: true,
+      raw: JSON.parse(deliverRaw),
+    };
+  } else {
+    deliverReceipt = {
+      status: 'skipped',
+      ok: false,
+      reason: 'validate-failed',
+    };
+  }
 
   return {
     jsonPath,
-    htmlPath,
+    htmlPath: deliverReceipt.status === 'passed' ? htmlPath : null,
+    deliverReceipt,
     sourcePath,
     validateReceipt,
     range,

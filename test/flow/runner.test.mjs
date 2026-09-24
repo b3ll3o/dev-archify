@@ -163,3 +163,46 @@ test('runFlow extrai baseSha correto para range 2-dot (main..feat)', async () =>
 
   await fs.rm(tmpRoot, {recursive: true, force: true});
 });
+
+test('runFlow nao chama archify deliver quando validate retornou ok=false', async () => {
+  await ensureFixture();
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-flow-runner-gate-'));
+  const outDir = path.join(tmpRoot, 'docs/flows');
+
+  // Stub de archify: 'validate' retorna ok=false; 'deliver' so' existe
+  // para contar se foi chamado (mas nao deve ser).
+  const stubPath = path.join(tmpRoot, 'stub-archify.mjs');
+  await fs.writeFile(stubPath, `
+    const sub = process.argv[3];
+    if (sub === 'validate') {
+      console.log(JSON.stringify({ok: false, diagnostics: [{message: 'forced failure'}]}));
+      process.exit(0);
+    }
+    if (sub === 'deliver') {
+      console.log('deliver-called');
+      process.exit(0);
+    }
+  `);
+
+  const fixtureDir = path.join(repoRoot, 'test/flow/fixtures/mini-repo');
+  const receipt = await runFlow({
+    range: 'main...feat',
+    out: outDir,
+    quality: 'standard',
+    archifyBin: stubPath,
+    cwd: fixtureDir,
+  }).catch(() => null);
+
+  // Como o gate cancela deliver, workflow.html nao deve existir.
+  assert.equal(
+    await fs.stat(path.join(outDir, 'workflow.html')).then(() => true, () => false),
+    false,
+    'workflow.html nao deve existir quando validate falhou',
+  );
+  if (receipt) {
+    assert.equal(receipt.validateReceipt.ok, false);
+    assert.equal(receipt.deliverReceipt.status, 'skipped');
+  }
+
+  await fs.rm(tmpRoot, {recursive: true, force: true});
+});

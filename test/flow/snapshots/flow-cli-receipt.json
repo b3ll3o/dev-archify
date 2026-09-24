@@ -1,6 +1,34 @@
 {
   "jsonPath": "workflow.json",
   "htmlPath": "workflow.html",
+  "deliverReceipt": {
+    "status": "passed",
+    "ok": true,
+    "raw": {
+      "schemaVersion": 1,
+      "ok": true,
+      "command": "deliver",
+      "type": "workflow",
+      "input": "workflow.json",
+      "output": "workflow.html",
+      "specification": {
+        "sha256": "<HASH>",
+        "bytes": 1318
+      },
+      "artifact": {
+        "sha256": "<HASH>",
+        "bytes": 797717
+      },
+      "validation": {
+        "checksPassed": 9,
+        "checkCount": 9,
+        "compositionProfile": "standard",
+        "compositionStatus": "pass",
+        "errors": 0,
+        "warnings": 0
+      }
+    }
+  },
   "sourcePath": "_flow_source.json",
   "validateReceipt": {
     "status": "passed",

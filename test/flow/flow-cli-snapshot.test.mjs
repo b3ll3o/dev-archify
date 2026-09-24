@@ -22,6 +22,38 @@ async function withCwd(dir, fn) {
 }
 
 function mask(receipt) {
+  // deliverReceipt.raw traz paths e hashes SHA-256 que variam por ambiente/
+  // execução. Quando validate='passed', mascaramos input/output para o basename
+  // e os hashes para '<HASH>' (uma string estável que congela no snapshot).
+  // Quando validate falhou, deliverReceipt.status='skipped' e raw é undefined.
+  const deliverReceipt = receipt.deliverReceipt
+    ? {
+        status: receipt.deliverReceipt.status,
+        ok: receipt.deliverReceipt.ok,
+        ...(receipt.deliverReceipt.reason ? {reason: receipt.deliverReceipt.reason} : {}),
+        ...(receipt.deliverReceipt.raw
+          ? {
+              raw: {
+                ...receipt.deliverReceipt.raw,
+                input: (receipt.deliverReceipt.raw.input || '').split('/').pop(),
+                output: (receipt.deliverReceipt.raw.output || '').split('/').pop(),
+                specification: receipt.deliverReceipt.raw.specification
+                  ? {
+                      sha256: '<HASH>',
+                      bytes: receipt.deliverReceipt.raw.specification.bytes,
+                    }
+                  : receipt.deliverReceipt.raw.specification,
+                artifact: receipt.deliverReceipt.raw.artifact
+                  ? {
+                      sha256: '<HASH>',
+                      bytes: receipt.deliverReceipt.raw.artifact.bytes,
+                    }
+                  : receipt.deliverReceipt.raw.artifact,
+              },
+            }
+          : {}),
+      }
+    : receipt.deliverReceipt;
   return {
     ...receipt,
     stamp: '<DETERMINISTIC>',
@@ -36,6 +68,7 @@ function mask(receipt) {
           summary: (receipt.validateReceipt.summary || '').replace(/[0-9]+/g, '#') || undefined,
         }
       : receipt.validateReceipt,
+    deliverReceipt,
   };
 }
 
