@@ -84,6 +84,8 @@ export async function runFlow(opts) {
   // Suporta tanto `base..HEAD` (sem espacos) quanto `base...HEAD` (3-dot).
   // Regex `\s*\.\.\s*` cobre ambos com trim opcional; antes só `...` e ` .. `
   // estavam cobertos, fazendo 2-dot retornar a string inteira.
+  // Edge case: `..HEAD` produz baseSha='' (intencional; git log trata como
+  // HEAD~ sem ref de origem — o sidecar de provenance aceita string vazia).
   const [baseSha] = range.split(/\s*\.\.\s*/);
   const commits = parseCommits(range, {cwd});
   const decisions = decisionsFile ? loadMdDecisions(decisionsFile) : [];
