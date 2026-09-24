@@ -3,20 +3,12 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import os from 'node:os';
-import {execFileSync} from 'node:child_process';
 import {runHook} from '../../hooks/pre-push.flow.mjs';
 
 async function withCwd(dir, fn) {
   const prev = process.cwd();
   process.chdir(dir);
   try { return await fn(); } finally { process.chdir(prev); }
-}
-
-async function buildCliCallLog(logFile) {
-  await fs.writeFile(logFile, '');
-  return (cmdline) => {
-    fs.appendFile(logFile, cmdline + '\n');
-  };
 }
 
 test('hook no-ops on push to main', async () => {
