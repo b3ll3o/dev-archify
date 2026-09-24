@@ -170,16 +170,24 @@ export async function runEnrichCommand({
 
   // 2. Detect flowId
   const detectedFlowId = detectFlowId(parsed, sourcePath);
-  // Catalog pode ter rows com prefixo `flow-<id>` (agent-workflows) OU sem
-  // prefixo (http-api-*, ci-*, telemetry.*, web-app-*, fs-*, df-*). Tentar
-  // as duas formas para nao quebrar enrichment retroativo dos 78 flows
-  // (B34): primeira forma literal, fallback com prefixo `flow-` se nao
-  // comecar com `flow-`.
-  const candidates = detectedFlowId
-    ? (detectedFlowId.startsWith('flow-')
-        ? [detectedFlowId]
-        : [detectedFlowId, `flow-${detectedFlowId}`])
-    : [];
+  // Catalog pode ter rows com:
+  //   - prefixo `flow-<id>` (agent-workflows) OU sem prefixo (http-api-*,
+  //     ci-*, telemetry.*, web-app-*, fs-*, df-*)
+  //   - sufixo de tipo explicito (e.g. `telemetry.frontend.browser.sdk.init.dataflow`)
+  //     OU sem sufixo (e.g. `flow-archive-demand`)
+  // Tentar todas as combinacoes para nao quebrar enrichment retroativo
+  // dos 78 flows (B34): primeira forma literal, depois prefixo `flow-` se
+  // nao comecar com `flow-`, depois sufixo `.${diagramType}`.
+  const candidates = [];
+  if (detectedFlowId) {
+    candidates.push(detectedFlowId);
+    if (!detectedFlowId.startsWith('flow-')) {
+      candidates.push(`flow-${detectedFlowId}`);
+    }
+    if (!detectedFlowId.endsWith(`.${diagramType}`)) {
+      candidates.push(`${detectedFlowId}.${diagramType}`);
+    }
+  }
 
   // 3. Catalog enrichment (B30): pode falhar gracefully
   let catalogEnrichment = null;
