@@ -174,7 +174,11 @@ export async function runFlow(opts) {
 
   return {
     jsonPath,
-    htmlPath: deliverReceipt.status === 'passed' ? htmlPath : null,
+    // NICE-1 do reviewer (Task 6): gate defensivo no estado de validate
+    // (nao no status final do deliver). Se um estado intermediario for
+    // adicionado no futuro (e.g. 'degraded'), esta expressao nao regredira
+    // silenciosamente.
+    htmlPath: validateReceipt.ok === true ? htmlPath : null,
     deliverReceipt,
     sourcePath,
     validateReceipt,

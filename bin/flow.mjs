@@ -114,7 +114,16 @@ export async function runCLI(args) {
       ? 'validated: passed'
       : `validated: ${receipt.validateReceipt.status} (${receipt.validateReceipt.summary || ''})`;
     console.log(`✓ wrote ${receipt.jsonPath}`);
-    console.log(`✓ wrote ${receipt.htmlPath}`);
+    // NICE-3 do reviewer (Task 6): quando deliver e' pulado (validate falhou),
+    // htmlPath === null. Imprimir "✓ wrote null" seria confuso; usamos
+    // mensagem explicita com o reason. O `?.` cobre o caso de testes mais
+    // antigos que nao populam deliverReceipt.
+    if (receipt.htmlPath) {
+      console.log(`✓ wrote ${receipt.htmlPath}`);
+    } else {
+      const reason = receipt.deliverReceipt?.reason || 'no-html-written';
+      console.log(`⊘ deliver skipped: ${reason}`);
+    }
     console.log(`✓ wrote ${receipt.sourcePath}`);
     console.log(`  ${validateBadge}`);
   }

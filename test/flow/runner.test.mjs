@@ -202,6 +202,11 @@ test('runFlow nao chama archify deliver quando validate retornou ok=false', asyn
   if (receipt) {
     assert.equal(receipt.validateReceipt.ok, false);
     assert.equal(receipt.deliverReceipt.status, 'skipped');
+    // NICE-2 do reviewer (Task 6): endurecer o shape do receipt contra
+    // regressao silenciosa — htmlPath deve ser explicitamente null quando
+    // deliver e' pulado, e nao um string falsy acidental.
+    assert.equal(receipt.htmlPath, null,
+      'htmlPath deve ser null quando deliver e\' pulado');
   }
 
   await fs.rm(tmpRoot, {recursive: true, force: true});
