@@ -263,3 +263,12 @@ export async function writeAtomic(targetPath, contents, {encoding = 'utf8'} = {}
     throw e;
   }
 }
+
+// Re-export enrichment helpers (B30).
+// Mantidos em parser.mjs para que tests/clients possam importar de um unico lugar.
+export {
+  parseCatalogRow,
+  enrichIrFromCatalog,
+  tagActor,
+  mergeEnrichment,
+} from './enrichment.mjs';

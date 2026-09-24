@@ -62,6 +62,26 @@
             "showcase"
           ]
         },
+        "tier": {
+          "type": "string",
+          "enum": [
+            "critical",
+            "important",
+            "nice"
+          ]
+        },
+        "mechanism": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "hand"
+          ]
+        },
+        "subject": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
         "views": {
           "$ref": "common.schema.json#/$defs/guidedViews"
         },

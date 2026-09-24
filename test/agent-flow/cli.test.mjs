@@ -125,3 +125,33 @@ test('runAgentFlow: 8 MDs auto-generable → write + validate passed', async () 
     await fs.rm(tmpDir, {recursive: true, force: true});
   }
 });
+
+test('runAgentFlow: enrichment aplicado automaticamente (tier/mechanism/subject populados no IR)', async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-agent-flow-enrich-'));
+  const outPath = path.join(tmpDir, 'flow.workflow.json');
+  try {
+    const receipt = await runAgentFlow({
+      sourcePath: path.join(workflowsDir, 'backend-feature.md'),
+      outPath,
+      quality: 'standard',
+      archifyBin,
+    });
+    assert.equal(receipt.exitCode, 0);
+    assert.ok(receipt.enrichment, 'receipt.enrichment deveria estar populado');
+    assert.equal(receipt.enrichment.tier, 'critical');
+    assert.equal(receipt.enrichment.mechanism, 'auto');
+    assert.match(receipt.enrichment.subject, /Backend NestJS/);
+    // Arquivo escrito tem tier/mechanism/subject em meta
+    const written = JSON.parse(await fs.readFile(outPath, 'utf8'));
+    assert.equal(written.meta.tier, 'critical');
+    assert.equal(written.meta.mechanism, 'auto');
+    // Actor tags aplicados nos nodes
+    assert.equal(written.nodes[0].sublabel, 'specialist'); // NESTJS-SPECIALIST
+    assert.equal(written.nodes[0].tag, 'scope:backend');
+    // View overview adicionada
+    assert.ok(Array.isArray(written.meta.views));
+    assert.ok(written.meta.views.some((v) => v.id === 'sequence-overview'));
+  } finally {
+    await fs.rm(tmpDir, {recursive: true, force: true});
+  }
+});

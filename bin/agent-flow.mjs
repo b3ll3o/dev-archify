@@ -20,11 +20,18 @@ import {
   extractTitle,
   generateIr,
   writeAtomic,
+  enrichIrFromCatalog,
+  mergeEnrichment,
+  tagActor,
 } from './agent-flow/parser.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const archifyBin = path.resolve(__dirname, 'archify.mjs');
+// Catalog path (B30): docs/flows/README.md e' a source-of-truth para tier/mechanism/subject.
+// dev-archify/ esta aninhado dentro do repo base (base/dev-archify/...), entao subir
+// 2 niveis de bin/ -> dev-archify/ -> base/.
+const baseRepoRoot = path.resolve(__dirname, '..', '..');
 
 export const HELP_TEXT = `Usage:
   archify agent-flow --source <md> --out <json> [--quality standard|showcase] [--no-validate] [--json]
@@ -130,6 +137,10 @@ export async function runAgentFlow({sourcePath, outPath, quality = 'standard', v
   // 2. Extract metadata + pipeline
   const fm = extractFrontmatter(md);
   const flowId = fm.name || path.basename(sourcePath).replace(/\.md$/, '');
+  const title = extractTitle(md, flowId);
+
+  // Parse pipeline (arrow/box-art). archive-demand.md (lista numerada) nao
+  // tem setas — fica fora deste MVP; sera tratado em B30+ com parser dedicado.
   const actors = extractPipelineFromMd(md);
   if (actors.length < 2) {
     const err = new Error(`no pipeline found in ${sourcePath} (need >=2 actors with '→' or ASCII box-art)`);
@@ -137,18 +148,44 @@ export async function runAgentFlow({sourcePath, outPath, quality = 'standard', v
     throw err;
   }
 
-  const title = extractTitle(md, flowId);
-  const ir = generateIr({
-    actors,
-    title,
-    // subject nao e' parte do schema v2 de workflow.json (additionalProperties:false em meta),
-    // entao nao populamos — enriquecimento via visual_preset/showcase fica para tasks futuras.
-    flowId,
-  });
+  let ir = generateIr({actors, title, flowId});
+
   // Override quality profile solicitado via CLI (default no generateIr: standard)
   ir.meta.quality_profile = quality;
 
-  // 3. Write atomic (staging + rename)
+  // 3. Enrichment (B30): catalog tier/mechanism/subject + actor role/scope tags + view overview.
+  //    Falha de enrichment NAO quebra o command (catalog pode estar ausente em outros repos).
+  //    Quando catalog ausente ou flowId nao encontrado, ir continua com primary.
+  let enrichmentApplied = false;
+  try {
+    const catalogPath = path.join(baseRepoRoot, 'docs/flows/README.md');
+    const catalogEnrichment = await enrichIrFromCatalog({catalogPath, flowId: `flow-${flowId}`});
+    if (catalogEnrichment) {
+      const actorTags = Object.fromEntries(
+        actors.map((a) => {
+          const id = a.toLowerCase().replaceAll('-', '_');
+          const tag = tagActor(a);
+          return [id, tag];
+        }),
+      );
+      ir = mergeEnrichment(ir, {
+        ...catalogEnrichment,
+        actorTags,
+        views: [{
+          id: 'sequence-overview',
+          label: 'Sequence Overview',
+          focus: ir.nodes.map((n) => n.id),
+          note: `Sequência nominal: ${actors.join(' → ')}`,
+        }],
+      });
+      enrichmentApplied = true;
+    }
+  } catch (e) {
+    // catalog ausente ou ilegivel — segue sem enrichment (primary intacto).
+    enrichmentApplied = false;
+  }
+
+  // 4. Write atomic (staging + rename)
   await writeAtomic(outPath, JSON.stringify(ir, null, 2));
 
   // 4. Validate (warning-only; nao falhamos o command quando validate falha)
@@ -180,6 +217,11 @@ export async function runAgentFlow({sourcePath, outPath, quality = 'standard', v
     edgesCount: ir.edges.length,
     mainPath: ir.mainPath,
     quality,
+    enrichment: enrichmentApplied ? {
+      tier: ir.meta.tier || null,
+      mechanism: ir.meta.mechanism || null,
+      subject: ir.meta.subject || null,
+    } : null,
     validate: validateReceipt,
     exitCode: 0,
   };
@@ -235,6 +277,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
         console.log(`  actors: ${receipt.actors.length}`);
         console.log(`  nodes:  ${receipt.nodesCount}`);
         console.log(`  edges:  ${receipt.edgesCount}`);
+        if (receipt.enrichment) {
+          console.log(`  enrichment: tier=${receipt.enrichment.tier} mechanism=${receipt.enrichment.mechanism}`);
+          console.log(`              subject=${receipt.enrichment.subject}`);
+        }
         if (receipt.validate) {
           const badge = receipt.validate.ok ? 'passed' : `failed: ${receipt.validate.summary || ''}`;
           console.log(`  validate: ${badge}`);
