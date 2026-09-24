@@ -66,13 +66,19 @@ test('archify init-flow-hook preserva exit code do installer (hook existente sem
   }
 });
 
-test('archify init-flow-hook delega args desconhecidos ao installer', async () => {
-  // Args extras são responsabilidade do installer; o dispatcher
-  // deve apenas propagar e sair com o código do installer.
+test('archify init-flow-hook rejeita --target fora de .git/ ou .husky/ via dispatcher', async () => {
+  // A allowlist de --target (NICE-1 da Task 4: apenas paths sob .git/ ou
+  // .husky/) e' enforced pelo installer; o dispatcher deve propagar o
+  // exit code nao-zero ao inves de absorver o erro silenciosamente.
+  // O path <tmp>/no-parent/pre-push propositalmente foge da allowlist
+  // (nao esta em .git/ nem em .husky/); o teste valida que a rejeicao
+  // e' visivel para o chamador, nao que um parent inexistente cause
+  // uma falha especifica.
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-dispatcher-'));
   await fs.mkdir(path.join(tmp, '.git'), {recursive: true});
   try {
     let exitCode = null;
+    let stderr = '';
     try {
       execFileSync(
         process.execPath,
@@ -81,10 +87,12 @@ test('archify init-flow-hook delega args desconhecidos ao installer', async () =
       );
     } catch (e) {
       exitCode = e.status;
+      stderr = e.stderr || '';
     }
-    // O installer falha (exit != 0) pois o diretório-pai não existe;
-    // o importante é que o dispatcher não absorveu o erro silenciosamente.
-    assert.notEqual(exitCode, 0, `esperava exit != 0 propagado, recebi ${exitCode}`);
+    assert.notEqual(exitCode, 0, `esperava exit != 0 propagado pelo dispatcher, recebi ${exitCode}`);
+    // Sanity: o stderr deve mencionar a violacao de allowlist.
+    assert.match(stderr + '', /--target must resolve/i,
+      `stderr deve mencionar allowlist; recebi: ${stderr}`);
   } finally {
     await fs.rm(tmp, {recursive: true, force: true});
   }
