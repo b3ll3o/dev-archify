@@ -84,6 +84,11 @@ export function parseDiffRange(range, {cwd, diffText} = {}) {
     ? diffText
     : execFileSync('git', [
       'diff', '--unified=0', '--no-color', '--no-ext-diff', range,
-    ], {encoding: 'utf8', maxBuffer: 50 * 1024 * 1024, ...(cwd ? {cwd} : {})});
+    ], {
+      encoding: 'utf8',
+      timeout: 10_000,
+      maxBuffer: 50 * 1024 * 1024,
+      ...(cwd ? {cwd} : {}),
+    });
   return parseDiffText(text);
 }

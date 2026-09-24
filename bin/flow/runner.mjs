@@ -15,7 +15,12 @@ import {buildSpec} from './builder-spec.mjs';
 function parseCommits(range, {cwd} = {}) {
   const text = execFileSync('git', [
     'log', range, '--pretty=%h%n%s%n%b%n--END--',
-  ], {encoding: 'utf8', ...(cwd ? {cwd} : {})});
+  ], {
+    encoding: 'utf8',
+    timeout: 10_000,
+    maxBuffer: 50 * 1024 * 1024,
+    ...(cwd ? {cwd} : {}),
+  });
   if (!text.trim()) return [];
   return text.split('--END--\n').filter(Boolean).map((block) => {
     const [sha, subject, ...rest] = block.split('\n');
@@ -56,6 +61,7 @@ function shellArchify(archifyBin, subArgs, cwd) {
   // garantindo semantica consistente em todos os subprocessos.
   return execFileSync('node', [archifyBin, ...subArgs], {
     encoding: 'utf8',
+    timeout: 30_000,
     ...(cwd ? {cwd} : {}),
   });
 }
