@@ -145,3 +145,64 @@ test('tambem rejeita --target com .. que escapa via traversal', async () => {
   await fs.rm(repoRoot, {recursive: true, force: true});
   await fs.rm(evilPath, {force: true});
 });
+
+test('rejeita --target dentro do repo mas fora de .git/ e .husky/ (allowlist tightened)', async () => {
+  // NICE-1 da Task 4: o helper agora aceita APENAS paths sob `.git/` ou
+  // `.husky/`. Paths em outros subdirs do repo (`bin/`, `scripts/`, etc.)
+  // sao rejeitados mesmo estando "dentro" do repo. Aqui tentamos escrever
+  // um shim em `<repoRoot>/bin/evil.sh` — o installer deve recusar.
+  const repoRoot = path.join(os.tmpdir(), `archify-flow-target-tightened-${process.pid}`);
+  await fs.mkdir(repoRoot, {recursive: true});
+  await fs.mkdir(path.join(repoRoot, '.git'), {recursive: true});
+  await fs.mkdir(path.join(repoRoot, 'bin'), {recursive: true});
+
+  const binPath = path.join(repoRoot_actual, 'bin', 'archify.mjs');
+  const evilInRepo = path.join(repoRoot, 'bin', 'evil.sh');
+  const res = spawnSync('node', [
+    binPath, 'init-flow-hook',
+    '--target', evilInRepo,
+  ], {cwd: repoRoot, encoding: 'utf8'});
+
+  assert.notEqual(res.status, 0,
+    `CLI deve rejeitar --target fora de .git/ e .husky/; recebi status=${res.status}, stderr=${res.stderr}`);
+  assert.match(
+    res.stderr + res.stdout,
+    /--target|\.git|\.husky/i,
+    `mensagem esperada; recebi status=${res.status}, stderr=${res.stderr}`,
+  );
+
+  // evilInRepo NAO deve ter sido criado.
+  assert.equal(
+    await fs.stat(evilInRepo).then(() => true, () => false),
+    false,
+    `Nao deve ter criado ${evilInRepo}`,
+  );
+
+  await fs.rm(repoRoot, {recursive: true, force: true});
+});
+
+test('aceita --target dentro de .git/hooks/ (helper accepts legitimate path)', async () => {
+  // GREEN test que confirma a allowlist nao e' tao restrita a ponto de
+  // bloquear o caso de uso real (override para path dentro de `.git/hooks/`).
+  const repoRoot = path.join(os.tmpdir(), `archify-flow-target-legit-${process.pid}`);
+  await fs.mkdir(repoRoot, {recursive: true});
+  await fs.mkdir(path.join(repoRoot, '.git', 'hooks'), {recursive: true});
+
+  const binPath = path.join(repoRoot_actual, 'bin', 'archify.mjs');
+  const legitTarget = path.join(repoRoot, '.git', 'hooks', 'pre-push');
+  const res = spawnSync('node', [
+    binPath, 'init-flow-hook',
+    '--target', legitTarget,
+  ], {cwd: repoRoot, encoding: 'utf8'});
+
+  assert.equal(res.status, 0,
+    `CLI deve aceitar --target dentro de .git/hooks/; recebi status=${res.status}, stderr=${res.stderr}`);
+  // O shim deve ter sido escrito.
+  assert.equal(
+    await fs.stat(legitTarget).then(() => true, () => false),
+    true,
+    `Esperava shim criado em ${legitTarget}`,
+  );
+
+  await fs.rm(repoRoot, {recursive: true, force: true});
+});

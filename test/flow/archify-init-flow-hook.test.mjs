@@ -16,9 +16,12 @@ const archifyBin = path.join(repoRoot, 'bin', 'archify.mjs');
 test('archify init-flow-hook --target <path> --force escreve o shim', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-dispatcher-'));
   // .git/ e' necessario para detectTarget passar (P1#4 exige que o installer
-  // valide o override so' depois de detectar layout).
+  // valide o override so' depois de detectar layout). Tambem cria .git/hooks/
+  // porque o helper de validacao de --target agora so aceita paths sob
+  // .git/ ou .husky/ (NICE-1 da Task 4: allowlist estrita).
   await fs.mkdir(path.join(tmp, '.git'), {recursive: true});
-  const target = path.join(tmp, 'pre-push');
+  await fs.mkdir(path.join(tmp, '.git', 'hooks'), {recursive: true});
+  const target = path.join(tmp, '.git', 'hooks', 'pre-push');
   try {
     execFileSync(
       process.execPath,
@@ -39,7 +42,8 @@ test('archify init-flow-hook --target <path> --force escreve o shim', async () =
 test('archify init-flow-hook preserva exit code do installer (hook existente sem --force)', async () => {
   const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'archify-dispatcher-'));
   await fs.mkdir(path.join(tmp, '.git'), {recursive: true});
-  const target = path.join(tmp, 'pre-push');
+  await fs.mkdir(path.join(tmp, '.git', 'hooks'), {recursive: true});
+  const target = path.join(tmp, '.git', 'hooks', 'pre-push');
   try {
     // Pre-popula o hook para forçar o installer a falhar com exit 1.
     await fs.writeFile(target, 'pre-existing content');

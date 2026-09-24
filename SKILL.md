@@ -75,6 +75,10 @@ Ativação em clone novo:
 npx archify init-flow-hook
 ```
 
+A flag `--target` do `init-flow-hook` aceita apenas paths dentro de
+`.git/` ou `.husky/` do repo (allowlist path-traversal). `/etc`, `/tmp`
+ou paths com `..` sao rejeitados antes do shim ser escrito.
+
 Depois disso, `git push` em qualquer branch de feature:
 
 - No-op em pushes para `main`/`master` (não faz nada).

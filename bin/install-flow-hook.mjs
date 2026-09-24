@@ -35,6 +35,11 @@ export async function detectTarget(root) {
   throw new Error(`no .git or .husky found under ${root}; cannot install flow hook`);
 }
 
+// NOTE: callers MUST validate the path via ensureTargetInsideRepo first.
+// writeShim intentionally does not re-check the path so that internal
+// tests and tooling can write fixtures for the existing hook contract.
+// The CLI entry IIFE in this file is the only current caller and calls
+// ensureTargetInsideRepo before writeShim.
 export async function writeShim(targetPath, body, {force = false} = {}) {
   // Guard: nunca sobrescreve sem flag explicita.
   if (!force && await exists(targetPath)) {
@@ -70,24 +75,31 @@ async function exists(p) {
   try { await fs.stat(p); return true; } catch { return false; }
 }
 
-// Valida que --target resolve dentro de `repoRoot` (sem escapar).
+// Valida que --target resolve dentro de `repoRoot` (sem escapar) E dentro
+// de um dos diretorios de hooks permitidos (allowlist estrita).
 // Auto-detect (sem --target) e' seguro por construcao: escolhe entre
 // `.git/hooks/pre-push` ou `.husky/pre-push` via `detectTarget`. O override
 // manual, por outro lado, passa por `path.resolve` verbatim — sem essa
 // validacao, `--target /etc/cron.d/evil` ou `--target ../../../tmp/x.sh`
 // escreveriam um shim 0o755 executable fora do repo (P1#4 — defesa contra
 // path-traversal em agent/CI que passa --target derivado de fonte externa).
-// Aceita qualquer path dentro do repo (incluindo `.git/hooks/`, `.husky/`
-// ou paths custom como `<tmp>/pre-push` em testes de dispatcher).
+//
+// Allowlist (NICE-1 da Task 4): aceita APENAS paths sob `.git/` ou `.husky/`
+// do repo (e nao qualquer path dentro do repo). Outras localizacoes legitimas
+// teoricamente (bin/, scripts/, etc.) nao recebem shim porque o hook so' e'
+// invocado por git a partir desses dois diretorios.
 export function ensureTargetInsideRepo(targetPath, repoRoot) {
   const resolved = path.resolve(targetPath);
-  const repoRootResolved = path.resolve(repoRoot);
-  const inside =
-    resolved === repoRootResolved ||
-    resolved.startsWith(repoRootResolved + path.sep);
+  const allowedPrefixes = [
+    path.resolve(repoRoot, '.git'),
+    path.resolve(repoRoot, '.husky'),
+  ];
+  const inside = allowedPrefixes.some(
+    (p) => resolved === p || resolved.startsWith(p + path.sep),
+  );
   if (!inside) {
     throw new Error(
-      `--target must resolve inside the repo; got ${resolved}`,
+      `--target must resolve inside the repo's .git/ or .husky/; got ${resolved}`,
     );
   }
   return resolved;
