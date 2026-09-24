@@ -77,6 +77,11 @@ test('handles add-only file', () => {
   assert.equal(result[0].path, 'new.ts');
   assert.equal(result[0].hunks[0].add, 3);
   assert.equal(result[0].hunks[0].del, 0);
+  // Espelha a guarda do test de delete: lines[1] nunca pode regredir abaixo de lines[0].
+  assert.ok(
+    result[0].hunks[0].lines[1] >= result[0].hunks[0].lines[0],
+    `lines[1] >= lines[0] esperado; recebi ${JSON.stringify(result[0].hunks[0].lines)}`,
+  );
 });
 
 test('handles delete-only file', () => {

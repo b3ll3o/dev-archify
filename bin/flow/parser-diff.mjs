@@ -53,6 +53,9 @@ export function parseDiffText(text) {
         start: startNew,
         add: lenNew,
         del: parseInt(hunkMatch[2] || '1', 10),
+        // lines[1] normalmente seria startNew + lenNew - 1, mas para
+        // hunks deletados (lenNew=0) o clamp evita "L0--1" no sublabel
+        // (regressao P0#1 — ver test/flow/parser-diff.test.mjs).
         lines: [startNew, Math.max(startNew, startNew + lenNew - 1)],
       });
       hunkActive = true;
