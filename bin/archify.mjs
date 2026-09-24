@@ -2132,6 +2132,16 @@ try {
       await runFlowCLI(args);
       break;
     }
+    case 'init-flow-hook': {
+      // Delega para bin/install-flow-hook.mjs preservando exit code.
+      const installerPath = path.resolve(import.meta.dirname, 'install-flow-hook.mjs');
+      const result = runNode([installerPath, ...args]);
+      if (result.error) throw result.error;
+      if (typeof result.status === 'number' && result.status !== 0) {
+        process.exit(result.status);
+      }
+      break;
+    }
     default:
       fail(`Unknown command "${command}".\n\n${usage()}`);
   }
