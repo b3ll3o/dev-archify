@@ -170,20 +170,34 @@ export async function runEnrichCommand({
 
   // 2. Detect flowId
   const detectedFlowId = detectFlowId(parsed, sourcePath);
-  // Catalog row prefix "flow-<flowId>": so adiciona prefixo se nao tiver
-  const catalogFlowId = detectedFlowId
-    ? (detectedFlowId.startsWith('flow-') ? detectedFlowId : `flow-${detectedFlowId}`)
-    : null;
+  // Catalog pode ter rows com prefixo `flow-<id>` (agent-workflows) OU sem
+  // prefixo (http-api-*, ci-*, telemetry.*, web-app-*, fs-*, df-*). Tentar
+  // as duas formas para nao quebrar enrichment retroativo dos 78 flows
+  // (B34): primeira forma literal, fallback com prefixo `flow-` se nao
+  // comecar com `flow-`.
+  const candidates = detectedFlowId
+    ? (detectedFlowId.startsWith('flow-')
+        ? [detectedFlowId]
+        : [detectedFlowId, `flow-${detectedFlowId}`])
+    : [];
 
   // 3. Catalog enrichment (B30): pode falhar gracefully
   let catalogEnrichment = null;
   let catalogWarning = null;
-  if (catalogFlowId) {
+  let catalogFlowId = null;
+  if (candidates.length > 0) {
     const finalCatalog = catalogPath || path.join(baseRepoRoot, 'docs/flows/README.md');
-    try {
-      catalogEnrichment = await enrichIrFromCatalog({catalogPath: finalCatalog, flowId: catalogFlowId});
-    } catch (e) {
-      catalogWarning = e.message;
+    for (const cand of candidates) {
+      try {
+        const res = await enrichIrFromCatalog({catalogPath: finalCatalog, flowId: cand});
+        if (res) {
+          catalogEnrichment = res;
+          catalogFlowId = cand;
+          break;
+        }
+      } catch (e) {
+        catalogWarning = e.message;
+      }
     }
   }
 
