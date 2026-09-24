@@ -2,6 +2,7 @@
 // Parse args → pre-flight (diff não-vazio, --out dentro do repo) → runFlow → print receipt.
 // Flag --strict eleva o exit code para 5 quando archify validate falhou.
 import {execFileSync} from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {runFlow} from './flow/runner.mjs';
@@ -120,9 +121,37 @@ export async function runCLI(args) {
   return receipt;
 }
 
+// P1#5 (path-traversal-via-symlink): `path.relative` nao resolve symlinks,
+// entao um `docs/evil -> /etc` passa no guard textual mas fwrite segue o
+// symlink e escreve fora do repo. Usamos realpathSync para resolver os
+// caminhos ao comparar; se `out` nao existe ainda (caso comum --out e'
+// criado), caminhamos ancestrais ate' o dir existente mais profundo.
 function isInsideRepo(out, repoRoot) {
   if (out === repoRoot) return true;
-  const rel = path.relative(repoRoot, out);
+  let realOut;
+  let realRepo;
+  try {
+    realOut = fs.realpathSync(out);
+  } catch {
+    // out ainda nao existe: resolve o ancestor mais profundo que existe.
+    let ancestor = out;
+    while (path.dirname(ancestor) !== ancestor) {
+      ancestor = path.dirname(ancestor);
+      try {
+        realOut = fs.realpathSync(ancestor);
+        break;
+      } catch {
+        /* continua subindo */
+      }
+    }
+    if (!realOut) realOut = out; // fallback textual
+  }
+  try {
+    realRepo = fs.realpathSync(repoRoot);
+  } catch {
+    realRepo = repoRoot;
+  }
+  const rel = path.relative(realRepo, realOut);
   return rel && !rel.startsWith('..') && !path.isAbsolute(rel);
 }
 
