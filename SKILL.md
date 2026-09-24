@@ -61,8 +61,32 @@ Lifecycle note: phase columns `0..4` occupy the main rail; event/terminal column
 | `sequence` | API call chains, request lifecycles, async traces, returns |
 | `dataflow` | Pipelines, ETL/ELT, lineage, governance, consumers |
 | `lifecycle` | State/status transitions, retries, waiting and terminal states |
+| `flow` | Generate a workflow diagram of the current diff (`archify flow`) |
 
 When ambiguous, run `node bin/archify.mjs guide "<scenario>" --json`. Scenario proof examples are structural references, not facts to copy.
+
+## Flow generation (automatic on push)
+
+Gera um diagrama de Workflow de cada mudança antes do push em uma branch de feature. O artefato (`docs/flows/workflow.json` + `docs/flows/workflow.html`) é commitado na mesma branch e viaja com o PR.
+
+Ativação em clone novo:
+
+```bash
+npx archify init-flow-hook
+```
+
+Depois disso, `git push` em qualquer branch de feature:
+
+- No-op em pushes para `main`/`master` (não faz nada).
+- Caso contrário: regenera o workflow a partir do diff vs `origin/main`, commita com `[skip ci]` e deixa o push prosseguir.
+
+Invocação manual (sem o hook):
+
+```bash
+node bin/archify.mjs flow --git-range=origin/main...HEAD --out=docs/flows/
+```
+
+Ver `node bin/archify.mjs flow --help` para a lista completa de argumentos e exit codes.
 
 ## Mermaid input
 
