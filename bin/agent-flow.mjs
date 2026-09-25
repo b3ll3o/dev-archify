@@ -183,40 +183,44 @@ export async function runAgentFlow({sourcePath, outPath, quality = 'standard', v
   // Override quality profile solicitado via CLI (default no generateIr: standard)
   ir.meta.quality_profile = quality;
 
-  // 3. Enrichment (B30): catalog tier/mechanism/subject + actor role/scope tags + view overview.
+  // 3. Enrichment (B30 + B35 Task 3): catalog tier/mechanism/subject + actor role/scope tags + view overview.
   //    Falha de enrichment NAO quebra o command (catalog pode estar ausente em outros repos).
-  //    Quando catalog ausente ou flowId nao encontrado, ir continua com primary.
+  //    Quando catalog ausente ou flowId nao encontrado, segue sem tier/mechanism/subject
+  //    mas tagActor enrichment (que nao depende do catalog) é SEMPRE aplicado.
+  //    Justificativa B35: JSON novo deve sair enriquecido sem precisar step manual `archify enrich`.
   let enrichmentApplied = false;
+  const catalogPath = path.join(baseRepoRoot, 'docs/flows/README.md');
+  let catalogEnrichment = null;
   try {
-    const catalogPath = path.join(baseRepoRoot, 'docs/flows/README.md');
-    const catalogEnrichment = await enrichIrFromCatalog({catalogPath, flowId: `flow-${flowId}`});
-    if (catalogEnrichment) {
-      const actorTags = actors.length > 0
-        ? Object.fromEntries(
-          actors.map((a) => {
-            const id = a.toLowerCase().replaceAll('-', '_');
-            const tag = tagActor(a);
-            return [id, tag];
-          }),
-        )
-        : {};
-      ir = mergeEnrichment(ir, {
-        ...catalogEnrichment,
-        actorTags,
-        views: actors.length > 0
-          ? [{
-            id: 'sequence-overview',
-            label: 'Sequence Overview',
-            focus: ir.nodes.map((n) => n.id),
-            note: `Sequência nominal: ${actors.join(' → ')}`,
-          }]
-          : undefined,
-      });
-      enrichmentApplied = true;
-    }
+    catalogEnrichment = await enrichIrFromCatalog({catalogPath, flowId: `flow-${flowId}`});
   } catch (e) {
-    // catalog ausente ou ilegivel — segue sem enrichment (primary intacto).
-    enrichmentApplied = false;
+    // catalog ausente ou ilegivel — segue sem enrichment de tier/mechanism/subject.
+  }
+  // tagActor e aplicado SEMPRE (independe do catalog). Garante que todo JSON novo sai
+  // com sublabel/tag em nodes mesmo quando flowId nao esta catalogado.
+  const actorTags = actors.length > 0
+    ? Object.fromEntries(
+      actors.map((a) => {
+        const id = a.toLowerCase().replaceAll('-', '_');
+        const tag = tagActor(a);
+        return [id, tag];
+      }),
+    )
+    : {};
+  if (catalogEnrichment || actorTags) {
+    ir = mergeEnrichment(ir, {
+      ...(catalogEnrichment || {}),
+      actorTags,
+      views: actors.length > 0
+        ? [{
+          id: 'sequence-overview',
+          label: 'Sequence Overview',
+          focus: ir.nodes.map((n) => n.id),
+          note: `Sequência nominal: ${actors.join(' → ')}`,
+        }]
+        : undefined,
+    });
+    enrichmentApplied = true;
   }
 
   // 4. Write atomic (staging + rename)
