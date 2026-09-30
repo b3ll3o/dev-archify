@@ -356,7 +356,10 @@ test('readable-v2 feeds a measured outside-channel constraint back into layout',
   const first = compileWorkflow({ workflow: document });
   const second = compileWorkflow({ workflow: clone(document) });
   assert.equal(first.ok, true, JSON.stringify(first.diagnostics, null, 2));
-  assert.deepEqual(first.receipt.viewBox, [780, 404]);
+  // B35 Task 2: bump generico de +20% para showcase auto mode.
+  // requiredViewBox permanece em [780, 404] (layout-fit sem bump); viewBox recebe
+  // ceil(404 * 1.2) = 485.
+  assert.deepEqual(first.receipt.viewBox, [780, 485]);
   assert.deepEqual(first.receipt.requiredViewBox, [780, 404]);
   assert.deepEqual(first.receipt.edges[0].points, [
     [140, 119], [764, 119], [764, 243], [140, 243],

@@ -4120,6 +4120,15 @@ function finalizeReadableViewBox() {
   }
   if (!workflow.meta?.viewBox) {
     viewBox = [...requiredViewBox];
+    // B35 Task 2: para quality_profile=showcase, viewBox auto-calculado ganha +20%
+    // de headroom vertical para acomodar tags/sublabels em nodes enriquecidos (B33).
+    // Quando meta.viewBox e' fornecido explicitamente, respeitamos o override do autor
+    // (e a regra de capacidade abaixo ajusta se overflow). Apenas o modo AUTO recebe o bump.
+    // Adicionar APOS o auto-fit do requiredViewBox para garantir que headroom
+    // nao e' perdido por overflow de tag/sublabel de nodes enriquecidos (B33).
+    if (resolvedQualityProfile === 'showcase') {
+      viewBox[1] = Math.ceil(viewBox[1] * 1.2);
+    }
     return;
   }
   const tooNarrow = viewBox[0] < requiredViewBox[0];
