@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Flow for main...feat",
+    "animation": "trace"
+  },
+  "lanes": [
+    {
+      "id": "modify",
+      "label": "Modify"
+    },
+    {
+      "id": "decide",
+      "label": "Decide"
+    },
+    {
+      "id": "validate",
+      "label": "Validate"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "m_fe2e7d",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "docs/changelo…",
+      "sublabel": "(+4 -0) L1-4",
+      "col": 0
+    },
+    {
+      "id": "m_aa8167",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "src/users.ts",
+      "sublabel": "(+2 -0) L1-2",
+      "col": 1
+    },
+    {
+      "id": "d_be7797",
+      "lane": "decide",
+      "type": "security",
+      "label": "07c7516",
+      "sublabel": "feat(users): add ge…",
+      "col": 2
+    },
+    {
+      "id": "d_281928",
+      "lane": "decide",
+      "type": "security",
+      "label": "308b088",
+      "sublabel": "feat(users): stub u…",
+      "col": 3
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_fe2e7d",
+      "to": "m_aa8167"
+    },
+    {
+      "from": "m_aa8167",
+      "to": "d_be7797"
+    },
+    {
+      "from": "d_be7797",
+      "to": "d_281928"
+    }
+  ],
+  "mainPath": [
+    "m_fe2e7d",
+    "m_aa8167",
+    "d_be7797",
+    "d_281928"
+  ]
+}

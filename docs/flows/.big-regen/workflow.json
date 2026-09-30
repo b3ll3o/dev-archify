@@ -1,0 +1,440 @@
+{
+  "schema_version": 1,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Flow for master..HEAD",
+    "animation": "trace"
+  },
+  "lanes": [
+    {
+      "id": "modify",
+      "label": "Modify"
+    },
+    {
+      "id": "decide",
+      "label": "Decide"
+    },
+    {
+      "id": "validate",
+      "label": "Validate"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "m_a0fa2f",
+      "lane": "modify",
+      "type": "frontend",
+      "label": ".gitignore",
+      "sublabel": "(+1 -0) L2-2",
+      "col": 0
+    },
+    {
+      "id": "m_2d724d",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "SKILL.md",
+      "sublabel": "(+34 -0) L64-64, L6…",
+      "col": 1
+    },
+    {
+      "id": "m_61f57c",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/archify.m…",
+      "sublabel": "(+17 -0) L32-33, L2…",
+      "col": 2
+    },
+    {
+      "id": "m_9d3dd0",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/flow.mjs",
+      "sublabel": "(+232 -0) L1-232",
+      "col": 3
+    },
+    {
+      "id": "m_b463cb",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/flow/buil…",
+      "sublabel": "(+211 -0) L1-211",
+      "col": 4
+    },
+    {
+      "id": "m_aba83e",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/flow/ids.…",
+      "sublabel": "(+10 -0) L1-10",
+      "col": 5
+    },
+    {
+      "id": "m_e203f0",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/flow/pars…",
+      "sublabel": "(+96 -0) L1-96",
+      "col": 5
+    },
+    {
+      "id": "m_1be466",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/flow/runn…",
+      "sublabel": "(+188 -0) L1-188",
+      "col": 5
+    },
+    {
+      "id": "m_b4fa7e",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "bin/install-f…",
+      "sublabel": "(+145 -0) L1-145",
+      "col": 5
+    },
+    {
+      "id": "m_f63f08",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "docs/superpow…",
+      "sublabel": "(+569 -0) L1-569",
+      "col": 5
+    },
+    {
+      "id": "m_bedd46",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "examples/feat…",
+      "sublabel": "(+22 -0) L1-22",
+      "col": 5
+    },
+    {
+      "id": "m_2a130a",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "examples/feat…",
+      "sublabel": "(+14867 -0) L1-14867",
+      "col": 5
+    },
+    {
+      "id": "m_2feb0b",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "examples/feat…",
+      "sublabel": "(+76 -0) L1-76",
+      "col": 5
+    },
+    {
+      "id": "m_a7a4ff",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "hooks/pre-pus…",
+      "sublabel": "(+86 -0) L1-86",
+      "col": 5
+    },
+    {
+      "id": "m_79cd91",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/arc…",
+      "sublabel": "(+99 -0) L1-99",
+      "col": 5
+    },
+    {
+      "id": "m_cd9630",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/bui…",
+      "sublabel": "(+169 -0) L1-169",
+      "col": 5
+    },
+    {
+      "id": "m_cfed6f",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/bui…",
+      "sublabel": "(+165 -0) L1-165",
+      "col": 5
+    },
+    {
+      "id": "m_15d93d",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/fix…",
+      "sublabel": "(+1 -0) L1-1",
+      "col": 5
+    },
+    {
+      "id": "m_4a273e",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/fix…",
+      "sublabel": "(+1 -0) L1-1",
+      "col": 5
+    },
+    {
+      "id": "m_83abe1",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/fix…",
+      "sublabel": "(+52 -0) L1-52",
+      "col": 5
+    },
+    {
+      "id": "m_0f3b7d",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/flo…",
+      "sublabel": "(+98 -0) L1-98",
+      "col": 5
+    },
+    {
+      "id": "m_430e79",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/flo…",
+      "sublabel": "(+257 -0) L1-257",
+      "col": 5
+    },
+    {
+      "id": "m_d9bf40",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/hoo…",
+      "sublabel": "(+64 -0) L1-64",
+      "col": 5
+    },
+    {
+      "id": "m_21c85b",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/ids…",
+      "sublabel": "(+33 -0) L1-33",
+      "col": 5
+    },
+    {
+      "id": "m_ab6e2b",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/ins…",
+      "sublabel": "(+61 -0) L1-61",
+      "col": 5
+    },
+    {
+      "id": "m_12bb07",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/ins…",
+      "sublabel": "(+208 -0) L1-208",
+      "col": 5
+    },
+    {
+      "id": "m_3028d3",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/par…",
+      "sublabel": "(+112 -0) L1-112",
+      "col": 5
+    },
+    {
+      "id": "m_05f4ab",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/run…",
+      "sublabel": "(+48 -0) L1-48",
+      "col": 5
+    },
+    {
+      "id": "m_3d1b08",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/run…",
+      "sublabel": "(+87 -0) L1-87",
+      "col": 5
+    },
+    {
+      "id": "m_31f628",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/run…",
+      "sublabel": "(+213 -0) L1-213",
+      "col": 5
+    },
+    {
+      "id": "m_0f3d65",
+      "lane": "modify",
+      "type": "frontend",
+      "label": "test/flow/sna…",
+      "sublabel": "(+122 -0) L1-122",
+      "col": 5
+    },
+    {
+      "id": "d_8aa584",
+      "lane": "decide",
+      "type": "security",
+      "label": "40 commits",
+      "sublabel": "1124ac1 27f47d4 997…",
+      "col": 5
+    }
+  ],
+  "edges": [
+    {
+      "from": "m_a0fa2f",
+      "to": "m_2d724d"
+    },
+    {
+      "from": "m_2d724d",
+      "to": "m_61f57c"
+    },
+    {
+      "from": "m_61f57c",
+      "to": "m_9d3dd0"
+    },
+    {
+      "from": "m_9d3dd0",
+      "to": "m_b463cb"
+    },
+    {
+      "from": "m_b463cb",
+      "to": "m_aba83e"
+    },
+    {
+      "from": "m_aba83e",
+      "to": "m_e203f0"
+    },
+    {
+      "from": "m_e203f0",
+      "to": "m_1be466"
+    },
+    {
+      "from": "m_1be466",
+      "to": "m_b4fa7e"
+    },
+    {
+      "from": "m_b4fa7e",
+      "to": "m_f63f08"
+    },
+    {
+      "from": "m_f63f08",
+      "to": "m_bedd46"
+    },
+    {
+      "from": "m_bedd46",
+      "to": "m_2a130a"
+    },
+    {
+      "from": "m_2a130a",
+      "to": "m_2feb0b"
+    },
+    {
+      "from": "m_2feb0b",
+      "to": "m_a7a4ff"
+    },
+    {
+      "from": "m_a7a4ff",
+      "to": "m_79cd91"
+    },
+    {
+      "from": "m_79cd91",
+      "to": "m_cd9630"
+    },
+    {
+      "from": "m_cd9630",
+      "to": "m_cfed6f"
+    },
+    {
+      "from": "m_cfed6f",
+      "to": "m_15d93d"
+    },
+    {
+      "from": "m_15d93d",
+      "to": "m_4a273e"
+    },
+    {
+      "from": "m_4a273e",
+      "to": "m_83abe1"
+    },
+    {
+      "from": "m_83abe1",
+      "to": "m_0f3b7d"
+    },
+    {
+      "from": "m_0f3b7d",
+      "to": "m_430e79"
+    },
+    {
+      "from": "m_430e79",
+      "to": "m_d9bf40"
+    },
+    {
+      "from": "m_d9bf40",
+      "to": "m_21c85b"
+    },
+    {
+      "from": "m_21c85b",
+      "to": "m_ab6e2b"
+    },
+    {
+      "from": "m_ab6e2b",
+      "to": "m_12bb07"
+    },
+    {
+      "from": "m_12bb07",
+      "to": "m_3028d3"
+    },
+    {
+      "from": "m_3028d3",
+      "to": "m_05f4ab"
+    },
+    {
+      "from": "m_05f4ab",
+      "to": "m_3d1b08"
+    },
+    {
+      "from": "m_3d1b08",
+      "to": "m_31f628"
+    },
+    {
+      "from": "m_31f628",
+      "to": "m_0f3d65"
+    },
+    {
+      "from": "m_0f3d65",
+      "to": "d_8aa584"
+    }
+  ],
+  "mainPath": [
+    "m_a0fa2f",
+    "m_2d724d",
+    "m_61f57c",
+    "m_9d3dd0",
+    "m_b463cb",
+    "m_aba83e",
+    "m_e203f0",
+    "m_1be466",
+    "m_b4fa7e",
+    "m_f63f08",
+    "m_bedd46",
+    "m_2a130a",
+    "m_2feb0b",
+    "m_a7a4ff",
+    "m_79cd91",
+    "m_cd9630",
+    "m_cfed6f",
+    "m_15d93d",
+    "m_4a273e",
+    "m_83abe1",
+    "m_0f3b7d",
+    "m_430e79",
+    "m_d9bf40",
+    "m_21c85b",
+    "m_ab6e2b",
+    "m_12bb07",
+    "m_3028d3",
+    "m_05f4ab",
+    "m_3d1b08",
+    "m_31f628",
+    "m_0f3d65",
+    "d_8aa584"
+  ]
+}
